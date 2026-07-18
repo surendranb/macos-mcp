@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -10,10 +11,27 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
+import { captureEvent } from './telemetry.js';
 
 const execAsync = promisify(exec);
 
-// Helper to run AppleScript by feeding it to osascript's stdin
+function escape(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+function shEscape(str: string): string {
+  return "'" + str.replace(/'/g, "'\\''") + "'";
+}
+
+const KEY_CODES: Record<string, number> = {
+  escape: 53, return: 36, tab: 48, delete: 51, space: 49, enter: 76,
+  up: 126, down: 125, left: 123, right: 124,
+  f1: 122, f2: 120, f3: 99, f4: 118, f5: 96, f6: 97, f7: 98,
+  f8: 100, f9: 101, f10: 109, f11: 103, f12: 111, f13: 105, f14: 107,
+  home: 115, end: 119, pageup: 116, pagedown: 121,
+};
+
 function runAppleScript(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn('osascript', []);
@@ -359,15 +377,367 @@ const TOOLS = [
       },
     },
   },
+
+  // Phase 1: Contacts
+  {
+    name: 'search_contacts',
+    description: 'Search macOS Contacts by name or email',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query (name or email)' },
+      },
+      required: ['query'],
+    },
+  },
+
+  // Phase 1: Clipboard
+  {
+    name: 'get_clipboard',
+    description: 'Read current clipboard content',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_clipboard',
+    description: 'Write text to clipboard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Text to copy to clipboard' },
+      },
+      required: ['text'],
+    },
+  },
+
+  // Phase 1: Notifications
+  {
+    name: 'send_notification',
+    description: 'Sends a macOS notification',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Notification title' },
+        subtitle: { type: 'string', description: 'Optional subtitle' },
+        body: { type: 'string', description: 'Optional body text' },
+      },
+      required: ['title'],
+    },
+  },
+
+  // Phase 1: System Control
+  {
+    name: 'set_system_volume',
+    description: 'Sets macOS output volume (0-100)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        level: { type: 'number', minimum: 0, maximum: 100, description: 'Volume level 0-100' },
+      },
+      required: ['level'],
+    },
+  },
+  {
+    name: 'sleep_display',
+    description: 'Puts display to sleep immediately',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'lock_screen',
+    description: 'Locks the macOS screen',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_do_not_disturb',
+    description: 'Toggle Do Not Disturb mode',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean', description: 'Enable or disable DND' },
+      },
+      required: ['enabled'],
+    },
+  },
+
+  // Phase 1: WiFi
+  {
+    name: 'get_wifi_info',
+    description: 'Gets current WiFi network information (SSID, signal strength, etc.)',
+    inputSchema: { type: 'object', properties: {} },
+  },
+
+  // Phase 2: Mail
+  {
+    name: 'search_emails',
+    description: 'Search emails by subject or sender in Apple Mail',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search text (matches subject or sender)' },
+        limit: { type: 'number', default: 10, description: 'Max results' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_email',
+    description: 'Read full email body by message ID',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'Message ID from search results' },
+        mailbox: { type: 'string', default: 'inbox', description: 'Mailbox name (inbox, sent, etc.)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'reply_to_email',
+    description: 'Reply to an email by message ID',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'Message ID' },
+        body: { type: 'string', description: 'Reply body text' },
+      },
+      required: ['id', 'body'],
+    },
+  },
+  {
+    name: 'forward_email',
+    description: 'Forward an email by message ID',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'Message ID' },
+        to: { type: 'string', description: 'Recipient email' },
+        body: { type: 'string', description: 'Additional body text' },
+      },
+      required: ['id', 'to', 'body'],
+    },
+  },
+
+  // Phase 2: Messages
+  {
+    name: 'search_messages',
+    description: 'Search iMessage conversations by text',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search text' },
+        limit: { type: 'number', default: 10, description: 'Max results' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_chat_history',
+    description: 'Get recent message history with a contact',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contact: { type: 'string', description: 'Contact name, phone, or email' },
+        limit: { type: 'number', default: 20, description: 'Max messages' },
+      },
+      required: ['contact'],
+    },
+  },
+
+  // Phase 2: Maps
+  {
+    name: 'search_maps',
+    description: 'Search for places on Apple Maps',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Place to search for' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_directions',
+    description: 'Get directions between two locations (opens Apple Maps)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Starting location' },
+        to: { type: 'string', description: 'Destination' },
+        mode: { type: 'string', enum: ['d', 'w', 'r'], default: 'd', description: 'd=driving, w=walking, r=transit' },
+      },
+      required: ['to'],
+    },
+  },
+
+  // Phase 2: Stickies
+  {
+    name: 'list_stickies',
+    description: 'Lists all macOS Stickies notes',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_sticky',
+    description: 'Get full content of a sticky note by ID',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Sticky note ID' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'create_sticky',
+    description: 'Create a new sticky note',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Note title' },
+        body: { type: 'string', description: 'Note content' },
+      },
+      required: ['title', 'body'],
+    },
+  },
+
+  // Phase 3: Screen Capture
+  {
+    name: 'take_screenshot',
+    description: 'Take a screenshot to a file or clipboard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Optional file path to save to (default: desktop)' },
+        interactive: { type: 'boolean', default: false, description: 'Interactive selection mode' },
+        type: { type: 'string', enum: ['screen', 'window', 'selection'], default: 'screen', description: 'Capture type' },
+      },
+    },
+  },
+
+  // Phase 3: UI Automation
+  {
+    name: 'click_at',
+    description: 'Click at screen coordinates',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        x: { type: 'number', description: 'X coordinate' },
+        y: { type: 'number', description: 'Y coordinate' },
+      },
+      required: ['x', 'y'],
+    },
+  },
+  {
+    name: 'type_text',
+    description: 'Type text at current keyboard focus',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Text to type' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'press_key',
+    description: 'Press a keyboard key',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Key name (e.g. Escape, Return, Tab, F5, a, etc.)' },
+        modifiers: {
+          type: 'array',
+          items: { type: 'string', enum: ['command', 'option', 'shift', 'control'] },
+          description: 'Modifier keys to hold',
+        },
+      },
+      required: ['key'],
+    },
+  },
+  {
+    name: 'list_windows',
+    description: 'List all visible app windows',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'focus_app',
+    description: 'Bring an app to front',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'App name (e.g. Safari, Notes)' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'get_window_position',
+    description: 'Get position and size of an app window',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        app: { type: 'string', description: 'App name' },
+        windowIndex: { type: 'number', default: 1, description: 'Window index (1-based)' },
+      },
+      required: ['app'],
+    },
+  },
+  {
+    name: 'resize_window',
+    description: 'Resize or reposition an app window',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        app: { type: 'string', description: 'App name' },
+        x: { type: 'number', description: 'New X position' },
+        y: { type: 'number', description: 'New Y position' },
+        width: { type: 'number', description: 'New width' },
+        height: { type: 'number', description: 'New height' },
+        windowIndex: { type: 'number', default: 1, description: 'Window index (1-based)' },
+      },
+      required: ['app', 'width', 'height'],
+    },
+  },
+
+  // Phase 3: Location
+  {
+    name: 'get_current_location',
+    description: 'Get approximate current location from WiFi',
+    inputSchema: { type: 'object', properties: {} },
+  },
+
+  // Phase 3: Photos
+  {
+    name: 'search_photos',
+    description: 'Search Photos library by keyword',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search keyword' },
+        limit: { type: 'number', default: 10, description: 'Max results' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_recent_photos',
+    description: 'Get recent photos from the Photos library',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', default: 10, description: 'Max results' },
+      },
+    },
+  },
 ];
 
 // Register list tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  captureEvent('list_tools').catch(console.error);
   return { tools: TOOLS };
 });
 
 // Register call tool handler
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  captureEvent('tool_executed', { tool: request.params.name }).catch(console.error);
   const { name, arguments: args } = request.params;
 
   try {
@@ -390,22 +760,50 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_calendar_events': {
         const { from, to } = args as { from: string; to: string };
-        // accli must be installed
-        const { stdout } = await execAsync(`/opt/homebrew/bin/accli export --from ${from} --to ${to} --json`);
-        return {
-          content: [{ type: 'text', text: stdout }],
-        };
+        const stdout = await runAppleScript(`
+          tell application "Calendar"
+            set output to ""
+            set calendarList to every calendar
+            repeat with c in calendarList
+              set calName to name of c
+              set eventList to (every event of c whose start date ≥ date "${escape(from)}" and end date ≤ date "${escape(to)}")
+              repeat with e in eventList
+                set eSummary to summary of e
+                set eStart to start date of e as string
+                set eEnd to end date of e as string
+                set eLocation to ""
+                try
+                  set eLocation to location of e
+                end try
+                set output to output & calName & "|" & eSummary & "|" & eStart & "|" & eEnd & "|" & eLocation & "\\n"
+              end repeat
+            end repeat
+            return output
+          end tell
+        `);
+        const events = stdout.split('\n').filter(Boolean).map(line => {
+          const [calendar, summary, start, end, location] = line.split('|');
+          return { calendar, summary, start, end, location: location || null };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(events, null, 2) }] };
       }
 
       case 'create_calendar_event': {
         const { calendar, summary, start, end, description, location } = args as any;
-        let cmd = `/opt/homebrew/bin/accli create "${calendar}" --summary "${summary}" --start "${start}" --end "${end}"`;
-        if (description) cmd += ` --description "${description}"`;
-        if (location) cmd += ` --location "${location}"`;
-        const { stdout } = await execAsync(cmd);
-        return {
-          content: [{ type: 'text', text: stdout }],
-        };
+        const script = `
+          tell application "Calendar"
+            set targetCal to calendar "${escape(calendar)}"
+            set newEvent to make new event in targetCal at end of events of targetCal
+            set summary of newEvent to "${escape(summary)}"
+            set start date of newEvent to date "${escape(start)}"
+            set end date of newEvent to date "${escape(end)}"
+        `;
+        let fullScript = script;
+        if (description) fullScript += `set description of newEvent to "${escape(description)}"\n`;
+        if (location) fullScript += `set location of newEvent to "${escape(location)}"\n`;
+        fullScript += `end tell`;
+        await runAppleScript(fullScript);
+        return { content: [{ type: 'text', text: `Created event: ${summary} in ${calendar}` }] };
       }
 
       case 'get_reminders': {
@@ -418,7 +816,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               set listName to name of aList
         `;
         if (filterList) {
-          script += `if listName is "${filterList}" then`;
+          script += `if listName is "${escape(filterList)}" then`;
         }
         script += `
               set allReminders to (every reminder of aList whose completed is false)
@@ -461,20 +859,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (list) {
           script += `
             try
-              set targetList to list "${list}"
+              set targetList to list "${escape(list)}"
             on error
-              set targetList to make new list with properties {name:"${list}"}
+              set targetList to make new list with properties {name:"${escape(list)}"}
             end try
           `;
         }
-        // Use 'body' for notes — that's the correct AppleScript property in Reminders
-        const props: string[] = [`name:"${title}"`];
-        if (notes) props.push(`body:"${notes}"`);
+        const props: string[] = [`name:"${escape(title)}"`];
+        if (notes) props.push(`body:"${escape(notes)}"`);
         script += `
             set newReminder to make new reminder in targetList with properties {${props.join(', ')}}
         `;
         if (due) {
-          script += `set due date of newReminder to date "${due}"\n`;
+          script += `set due date of newReminder to date "${escape(due)}"\n`;
         }
         script += `
             return id of newReminder
@@ -490,7 +887,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { id } = args as { id: string };
         await runAppleScript(`
           tell application "Reminders"
-            set aReminder to reminder id "${id}"
+            set aReminder to reminder id "${escape(id)}"
             set completed of aReminder to true
             return "done"
           end tell
@@ -528,7 +925,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { id } = args as { id: string };
         const body = await runAppleScript(`
           tell application "Notes"
-            return body of note id "${id}"
+            return body of note id "${escape(id)}"
           end tell
         `);
         return {
@@ -543,12 +940,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         `;
         if (folder) {
           script += `
-            set targetFolder to folder "${folder}"
-            make new note in targetFolder with properties {name:"${title}", body:"${body}"}
+            set targetFolder to folder "${escape(folder)}"
+            make new note in targetFolder with properties {name:"${escape(title)}", body:"${escape(body)}"}
           `;
         } else {
           script += `
-            make new note with properties {name:"${title}", body:"${body}"}
+            make new note with properties {name:"${escape(title)}", body:"${escape(body)}"}
           `;
         }
         script += `
@@ -565,8 +962,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { id, content } = args as { id: string; content: string };
         await runAppleScript(`
           tell application "Notes"
-            set aNote to note id "${id}"
-            set body of aNote to (body of aNote) & "<p>${content}</p>"
+            set aNote to note id "${escape(id)}"
+            set body of aNote to (body of aNote) & "<p>${escape(content)}</p>"
             return "done"
           end tell
         `);
@@ -625,7 +1022,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { name: pName } = args as { name: string };
         await runAppleScript(`
           tell application "Music"
-            play playlist "${pName}"
+            play playlist "${escape(pName)}"
           end tell
         `);
         return {
@@ -673,9 +1070,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { to, subject, body } = args as any;
         await runAppleScript(`
           tell application "Mail"
-            set newMsg to make new outgoing message with properties {subject:"${subject}", content:"${body}"}
+            set newMsg to make new outgoing message with properties {subject:"${escape(subject)}", content:"${escape(body)}"}
             tell newMsg
-              make new to recipient with properties {address:"${to}"}
+              make new to recipient with properties {address:"${escape(to)}"}
             end tell
             send newMsg
           end tell
@@ -718,7 +1115,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { to, message } = args as any;
         await runAppleScript(`
           tell application "Messages"
-            send "${message}" to buddy "${to}" of service "iMessage"
+            send "${escape(message)}" to buddy "${escape(to)}" of service "iMessage"
           end tell
         `);
         return {
@@ -729,7 +1126,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // 🌐 Browser & Shortcuts
       case 'open_url': {
         const { url } = args as { url: string };
-        await execAsync(`open "${url}"`);
+        await execAsync(`open ${shEscape(url)}`);
         return {
           content: [{ type: 'text', text: `Opened URL: ${url}` }],
         };
@@ -771,9 +1168,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'run_shortcut': {
         const { name: sName, input } = args as any;
-        let cmd = `/usr/bin/shortcuts run "${sName}"`;
+        let cmd = `/usr/bin/shortcuts run ${shEscape(sName)}`;
         if (input) {
-          cmd = `echo "${input}" | ${cmd}`;
+          cmd = `echo ${shEscape(input)} | ${cmd}`;
         }
         const { stdout } = await execAsync(cmd);
         return {
@@ -905,18 +1302,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case 'derived_data': {
               const ddPath = path.join(os.homedir(), 'Library/Developer/Xcode/DerivedData');
               try {
-                await execAsync(`rm -rf "${ddPath}"/*`);
-                results.push(`Pruned Xcode DerivedData: ${ddPath}`);
+                const { stdout } = await execAsync(`ls "${ddPath}" 2>/dev/null | head -1`);
+                if (stdout.trim()) {
+                  await execAsync(`rm -rf "${ddPath}"/*`);
+                  results.push(`Pruned Xcode DerivedData`);
+                } else {
+                  results.push(`DerivedData already empty`);
+                }
               } catch (e) {
-                results.push(`Skipped DerivedData (not found or permission denied)`);
+                results.push(`Skipped DerivedData (not found)`);
               }
               break;
             }
             case 'trash': {
-              const trashPath = path.join(os.homedir(), '.Trash');
               try {
-                await execAsync(`rm -rf "${trashPath}"/*`);
-                results.push(`Emptied Trash: ${trashPath}`);
+                await runAppleScript(`tell app "Finder" to delete every item of trash`);
+                results.push(`Emptied Trash via Finder`);
               } catch (e) {
                 results.push(`Failed to empty trash: ${(e as Error).message}`);
               }
@@ -924,9 +1325,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             case 'user_caches': {
               const cachePath = path.join(os.homedir(), 'Library/Caches');
+              // ponytail: deletes top-level cache dirs only, not recursive. Add per-app granularity if needed.
               try {
-                await execAsync(`rm -rf "${cachePath}"/*`);
-                results.push(`Cleared user caches: ${cachePath}`);
+                const { stdout } = await execAsync(`ls "${cachePath}" 2>/dev/null | head -1`);
+                if (stdout.trim()) {
+                  await execAsync(`find "${cachePath}" -maxdepth 1 -type d -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null; find "${cachePath}" -maxdepth 1 -type f -not -name '.' -not -name '..' -delete 2>/dev/null`);
+                  results.push(`Cleared user caches`);
+                } else {
+                  results.push(`Caches already empty`);
+                }
               } catch (e) {
                 results.push(`Cleared user caches partially: ${(e as Error).message}`);
               }
@@ -1010,7 +1417,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           await execAsync(`kill -9 ${pid}`);
           return { content: [{ type: 'text', text: `Killed PID ${pid}` }] };
         } else if (pName) {
-          await execAsync(`pkill -9 -f "${pName}"`);
+          await execAsync(`pkill -9 -f ${shEscape(pName)}`);
           return { content: [{ type: 'text', text: `Killed process matching "${pName}"` }] };
         }
         throw new McpError(ErrorCode.InvalidParams, 'Must provide either pid or name');
@@ -1067,6 +1474,446 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // 👤 Contacts
+      case 'search_contacts': {
+        const { query } = args as { query: string };
+        const stdout = await runAppleScript(`
+          tell application "Contacts"
+            set output to ""
+            set matchingPeople to every person whose name contains "${escape(query)}" or email contains "${escape(query)}"
+            repeat with p in matchingPeople
+              set pName to name of p
+              set pId to id of p
+              set org to ""
+              try
+                set org to company of p
+              end try
+              set output to output & pId & "|" & pName & "|" & org & "\\n"
+            end repeat
+            return output
+          end tell
+        `);
+        const contacts = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, name, org] = line.split('|');
+          return { id, name, org };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(contacts, null, 2) }] };
+      }
+
+      // 📋 Clipboard
+      case 'get_clipboard': {
+        const { stdout } = await execAsync('pbpaste');
+        return { content: [{ type: 'text', text: stdout }] };
+      }
+      case 'set_clipboard': {
+        const { text } = args as { text: string };
+        const proc = spawn('pbcopy', []);
+        proc.stdin.write(text);
+        proc.stdin.end();
+        await new Promise(resolve => proc.on('close', resolve));
+        return { content: [{ type: 'text', text: 'Copied to clipboard' }] };
+      }
+
+      // 🔔 Notifications
+      case 'send_notification': {
+        const { title, subtitle, body } = args as any;
+        let script = `display notification "${escape(body || '')}" with title "${escape(title)}"`;
+        if (subtitle) script += ` subtitle "${escape(subtitle)}"`;
+        script += ` sound name "default"`;
+        await runAppleScript(script);
+        return { content: [{ type: 'text', text: `Sent notification: ${title}` }] };
+      }
+
+      // 🎛️ System Control
+      case 'set_system_volume': {
+        const { level } = args as { level: number };
+        await runAppleScript(`set volume output volume ${level}`);
+        return { content: [{ type: 'text', text: `Set volume to ${level}` }] };
+      }
+      case 'sleep_display': {
+        await execAsync('pmset displaysleepnow');
+        return { content: [{ type: 'text', text: 'Display set to sleep' }] };
+      }
+      case 'lock_screen': {
+        await runAppleScript(`tell application "System Events" to keystroke "q" using {command down, control down}`);
+        return { content: [{ type: 'text', text: 'Screen locked' }] };
+      }
+      case 'set_do_not_disturb': {
+        const { enabled } = args as { enabled: boolean };
+        if (enabled) {
+          await execAsync(`defaults -currentHost write ~/Library/Preferences/ByHost/com.apple.notificationcenterui doNotDisturb -boolean true && defaults -currentHost write ~/Library/Preferences/ByHost/com.apple.notificationcenterui doNotDisturbDate -date "$(date)" && killall NotificationCenter`);
+        } else {
+          await execAsync(`defaults -currentHost write ~/Library/Preferences/ByHost/com.apple.notificationcenterui doNotDisturb -boolean false && killall NotificationCenter`);
+        }
+        return { content: [{ type: 'text', text: `DND ${enabled ? 'enabled' : 'disabled'}` }] };
+      }
+
+      // 📶 WiFi
+      case 'get_wifi_info': {
+        try {
+          const { stdout } = await execAsync(`/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I`);
+          const info: Record<string, string> = {};
+          stdout.split('\n').forEach(line => {
+            const [, key, val] = line.match(/^\s*(.+?):\s(.+)$/m) || [];
+            if (key) info[key.trim()] = val.trim();
+          });
+          return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
+        } catch {
+          const { stdout } = await execAsync(`networksetup -getairportnetwork en0 2>/dev/null || networksetup -getairportnetwork en1 2>/dev/null`);
+          return { content: [{ type: 'text', text: stdout.trim() || 'No WiFi info available' }] };
+        }
+      }
+
+      // ✉️ Mail
+      case 'search_emails': {
+        const { query, limit = 10 } = args as { query: string; limit: number };
+        const stdout = await runAppleScript(`
+          tell application "Mail"
+            activate
+            delay 1
+            set output to ""
+            set matchingMsgs to (every message of inbox whose subject contains "${escape(query)}" or sender contains "${escape(query)}")
+            set mCount to count of matchingMsgs
+            if mCount > ${limit} then set mCount to ${limit}
+            repeat with i from 1 to mCount
+              set aMsg to item i of matchingMsgs
+              set output to output & (id of aMsg) & "|" & (sender of aMsg) & "|" & (subject of aMsg) & "|" & (date received of aMsg as string) & "\\n"
+            end repeat
+            return output
+          end tell
+        `);
+        const msgs = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, sender, subject, date] = line.split('|');
+          return { id: parseInt(id), sender, subject, date };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(msgs, null, 2) }] };
+      }
+      case 'get_email': {
+        const { id, mailbox = 'inbox' } = args as { id: number; mailbox: string };
+        const stdout = await runAppleScript(`
+          tell application "Mail"
+            activate
+            delay 1
+            set output to ""
+            try
+              set aMsg to message id ${id} of mailbox "${escape(mailbox)}" of account 1
+              set output to output & "From: " & sender of aMsg & "\\n"
+              set output to output & "Subject: " & subject of aMsg & "\\n"
+              set output to output & "Date: " & (date received of aMsg as string) & "\\n"
+              set output to output & "---\\n"
+              set output to output & (content of aMsg)
+            end try
+            return output
+          end tell
+        `);
+        return { content: [{ type: 'text', text: stdout || 'Email not found' }] };
+      }
+      case 'reply_to_email': {
+        const { id, body } = args as { id: number; body: string };
+        await runAppleScript(`
+          tell application "Mail"
+            activate
+            set aMsg to message id ${id} of inbox
+            set replyMsg to reply aMsg
+            set content of replyMsg to "${escape(body)}"
+            send replyMsg
+          end tell
+        `);
+        return { content: [{ type: 'text', text: `Replied to message ${id}` }] };
+      }
+      case 'forward_email': {
+        const { id, to, body } = args as { id: number; to: string; body: string };
+        await runAppleScript(`
+          tell application "Mail"
+            activate
+            set aMsg to message id ${id} of inbox
+            set fwdMsg to forward aMsg
+            make new to recipient at end of to recipients of fwdMsg with properties {address:"${escape(to)}"}
+            set content of fwdMsg to "${escape(body)}" & return & return & (content of aMsg)
+            send fwdMsg
+          end tell
+        `);
+        return { content: [{ type: 'text', text: `Forwarded message ${id} to ${to}` }] };
+      }
+
+      // 💬 Messages
+      case 'search_messages': {
+        const { query, limit = 10 } = args as { query: string; limit: number };
+        const stdout = await runAppleScript(`
+          tell application "Messages"
+            set output to ""
+            set chatCount to count of every chat
+            repeat with c in every chat
+              try
+                set chatName to name of c
+                if chatName contains "${escape(query)}" then
+                  set output to output & id of c & "|" & chatName & "|\\n"
+                end if
+              end try
+            end repeat
+            return output
+          end tell
+        `);
+        const chats = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, name] = line.split('|');
+          return { id, name };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(chats.slice(0, limit), null, 2) }] };
+      }
+      case 'get_chat_history': {
+        const { contact, limit = 20 } = args as { contact: string; limit: number };
+        const stdout = await runAppleScript(`
+          tell application "Messages"
+            set output to ""
+            set chatCount to count of every chat
+            repeat with c in every chat
+              try
+                set chatName to name of c
+                if chatName contains "${escape(contact)}" then
+                  set msgCount to count of messages of c
+                  if msgCount > ${limit} then set msgCount to ${limit}
+                  repeat with i from msgCount to 1 by -1
+                    set m to message i of c
+                    set mSender to ""
+                    try
+                      set mSender to display name of participant of m
+                    end try
+                    set output to output & mSender & "|" & (content of m) & "|" & (date sent of m as string) & "\\n"
+                  end repeat
+                end if
+              end try
+            end repeat
+            return output
+          end tell
+        `);
+        const msgs = stdout.split('\n').filter(Boolean).map(line => {
+          const [sender, text, date] = line.split('|');
+          return { sender, text, date };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(msgs, null, 2) }] };
+      }
+
+      // 🗺️ Maps
+      case 'search_maps': {
+        const { query } = args as { query: string };
+        await execAsync(`open "maps://?q=${encodeURIComponent(query)}"`);
+        return { content: [{ type: 'text', text: `Opened Maps searching for: ${query}` }] };
+      }
+      case 'get_directions': {
+        const { from, to, mode = 'd' } = args as { from?: string; to: string; mode: string };
+        let url = `maps://?dirflg=${mode}&daddr=${encodeURIComponent(to)}`;
+        if (from) url += `&saddr=${encodeURIComponent(from)}`;
+        await execAsync(`open "${url}"`);
+        return { content: [{ type: 'text', text: `Opened Maps with directions to: ${to}` }] };
+      }
+
+      // 🟡 Stickies
+      case 'list_stickies': {
+        const stdout = await runAppleScript(`
+          tell application "Stickies"
+            set output to ""
+            repeat with s in every sticky note
+              set output to output & (id of s) & "|" & (name of s) & "\\n"
+            end repeat
+            return output
+          end tell
+        `);
+        const notes = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, name] = line.split('|');
+          return { id, name };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(notes, null, 2) }] };
+      }
+      case 'get_sticky': {
+        const { id } = args as { id: string };
+        const stdout = await runAppleScript(`
+          tell application "Stickies"
+            return body of sticky note id "${escape(id)}"
+          end tell
+        `);
+        return { content: [{ type: 'text', text: stdout }] };
+      }
+      case 'create_sticky': {
+        const { title, body } = args as { title: string; body: string };
+        await runAppleScript(`
+          tell application "Stickies"
+            make new sticky note with properties {name:"${escape(title)}", body:"${escape(body)}"}
+          end tell
+        `);
+        return { content: [{ type: 'text', text: `Created sticky: ${title}` }] };
+      }
+
+      // 📸 Screen Capture
+      case 'take_screenshot': {
+        const { path: savePath, interactive = false, type = 'screen' } = args as any;
+        let cmd = 'screencapture';
+        if (interactive) cmd += ' -i';
+        if (type === 'window') cmd += ' -w';
+        if (type === 'selection') cmd += ' -s';
+        const outPath = savePath || path.join(os.homedir(), 'Desktop', `screenshot-${Date.now()}.png`);
+        cmd += ` "${outPath}"`;
+        await execAsync(cmd);
+        return { content: [{ type: 'text', text: `Screenshot saved to: ${outPath}` }] };
+      }
+
+      // 🖱️ UI Automation
+      case 'click_at': {
+        const { x, y } = args as { x: number; y: number };
+        await runAppleScript(`tell application "System Events" to click at {${x}, ${y}}`);
+        return { content: [{ type: 'text', text: `Clicked at (${x}, ${y})` }] };
+      }
+      case 'type_text': {
+        const { text } = args as { text: string };
+        await runAppleScript(`tell application "System Events" to keystroke "${escape(text)}"`);
+        return { content: [{ type: 'text', text: `Typed text` }] };
+      }
+      case 'press_key': {
+        const { key, modifiers = [] } = args as { key: string; modifiers: string[] };
+        const modStr = modifiers.length ? ` using {${modifiers.join(', ')}}` : '';
+        const code = KEY_CODES[key.toLowerCase()];
+        if (code !== undefined) {
+          await runAppleScript(`tell application "System Events" to key code ${code}${modStr}`);
+        } else {
+          await runAppleScript(`tell application "System Events" to keystroke "${escape(key)}"${modStr}`);
+        }
+        return { content: [{ type: 'text', text: `Pressed key: ${key}` }] };
+      }
+      case 'list_windows': {
+        const stdout = await runAppleScript(`
+          tell application "System Events"
+            set output to ""
+            repeat with p in every process whose background only is false
+              try
+                set winCount to count of windows of p
+                if winCount > 0 then
+                  set output to output & (name of p) & "|" & winCount & "\\n"
+                end if
+              end try
+            end repeat
+            return output
+          end tell
+        `);
+        const windows = stdout.split('\n').filter(Boolean).map(line => {
+          const [app, count] = line.split('|');
+          return { app, windowCount: parseInt(count) };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(windows, null, 2) }] };
+      }
+      case 'focus_app': {
+        const { name } = args as { name: string };
+        await runAppleScript(`tell application "System Events" to set frontmost of process "${escape(name)}" to true`);
+        return { content: [{ type: 'text', text: `Focused app: ${name}` }] };
+      }
+      case 'get_window_position': {
+        const { app, windowIndex = 1 } = args as { app: string; windowIndex: number };
+        const stdout = await runAppleScript(`
+          tell application "System Events"
+            tell process "${escape(app)}"
+              try
+                set w to window ${windowIndex}
+                set p to position of w
+                set s to size of w
+                return (item 1 of p) & "|" & (item 2 of p) & "|" & (item 1 of s) & "|" & (item 2 of s)
+              end try
+            end tell
+          end tell
+        `);
+        const [x, y, w, h] = stdout.split('|');
+        return { content: [{ type: 'text', text: JSON.stringify({ x: parseInt(x), y: parseInt(y), width: parseInt(w), height: parseInt(h) }, null, 2) }] };
+      }
+      case 'resize_window': {
+        const { app, x, y, width, height, windowIndex = 1 } = args as any;
+        await runAppleScript(`
+          tell application "System Events"
+            tell process "${escape(app)}"
+              try
+                set position of window ${windowIndex} to {${x || 0}, ${y || 0}}
+                set size of window ${windowIndex} to {${width}, ${height}}
+              end try
+            end tell
+          end tell
+        `);
+        return { content: [{ type: 'text', text: `Resized ${app} window to ${width}x${height}` }] };
+      }
+
+      // 📍 Location
+      case 'get_current_location': {
+        const locBin = path.join(__dirname, 'location');
+        try {
+          if (fs.existsSync(locBin)) {
+            const { stdout } = await execAsync(locBin);
+            const data = JSON.parse(stdout);
+            if (!data.error) {
+              return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+            }
+          }
+        } catch {}
+        try {
+          const { stdout } = await execAsync(`/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I | grep -E '^[[:space:]]*SSID' | awk '{print $2}'`);
+          const ssid = stdout.trim();
+          const { stdout: ipInfo } = await execAsync(`curl -s https://ipapi.co/json/ 2>/dev/null || echo '{}'`);
+          const geo = JSON.parse(ipInfo);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                source: 'wifi_ip',
+                ssid: ssid || null,
+                ip_location: geo.city ? `${geo.city}, ${geo.region}, ${geo.country_name}` : null,
+                latitude: geo.latitude || null,
+                longitude: geo.longitude || null,
+              }, null, 2),
+            }],
+          };
+        } catch {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: 'Could not determine location' }, null, 2) }] };
+        }
+      }
+
+      // 🖼️ Photos
+      case 'search_photos': {
+        const { query, limit = 10 } = args as { query: string; limit: number };
+        const stdout = await runAppleScript(`
+          tell application "Photos"
+            set output to ""
+            set matchingPhotos to (every media item whose name contains "${escape(query)}")
+            set mCount to count of matchingPhotos
+            if mCount > ${limit} then set mCount to ${limit}
+            repeat with i from 1 to mCount
+              set p to item i of matchingPhotos
+              set output to output & (id of p) & "|" & (name of p) & "|" & (date of p as string) & "\\n"
+            end repeat
+            return output
+          end tell
+        `);
+        const photos = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, name, date] = line.split('|');
+          return { id, name, date };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(photos, null, 2) }] };
+      }
+      case 'get_recent_photos': {
+        const { limit = 10 } = args as { limit: number };
+        const stdout = await runAppleScript(`
+          tell application "Photos"
+            set output to ""
+            set recentItems to (every media item whose visible is true)
+            set mCount to count of recentItems
+            if mCount > ${limit} then set mCount to ${limit}
+            repeat with i from 1 to mCount
+              set p to item i of recentItems
+              set output to output & (id of p) & "|" & (name of p) & "|" & (date of p as string) & "\\n"
+            end repeat
+            return output
+          end tell
+        `);
+        const photos = stdout.split('\n').filter(Boolean).map(line => {
+          const [id, name, date] = line.split('|');
+          return { id, name, date };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(photos, null, 2) }] };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
     }
@@ -1083,6 +1930,7 @@ async function run() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('macOS Companion MCP Server running on stdio');
+  captureEvent('mcp_started').catch(console.error);
 
   // ponytail: warm up slow-starting apps in background at init so first tool call isn't cold.
   // Notes and Reminders take 15-40s to launch headlessly; open them now, don't wait.

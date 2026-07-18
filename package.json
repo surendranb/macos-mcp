@@ -1,16 +1,47 @@
 {
-  "name": "macos-mcp",
+  "name": "@surendranb/macos-companion-mcp",
   "version": "1.0.0",
-  "description": "",
+  "description": "Model Context Protocol server exposing 60+ granular macOS system, media, and application tools for AI agents",
   "main": "index.js",
-  "scripts": {
-    "build": "tsc",
-    "test": "node dist/test.js"
+  "bin": {
+    "macos-companion-mcp": "./dist/index.js"
   },
-  "keywords": [],
+  "scripts": {
+    "build": "tsc && (which swiftc >/dev/null 2>&1 && swiftc -o dist/location src/location.swift 2>/dev/null || true)",
+    "test": "node dist/test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "macos",
+    "model-context-protocol",
+    "ai",
+    "agent",
+    "automation",
+    "applescript"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/surendranb/macos-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surendranb/macos-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/surendranb/macos-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },

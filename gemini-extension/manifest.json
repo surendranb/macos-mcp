@@ -1,0 +1,10 @@
+{
+  "name": "macOS Companion",
+  "version": "1.0.0",
+  "description": "Deeply integrates Gemini with the macOS native substrate. Access system health, native apps, and media metadata locally.",
+  "author": "surendranb",
+  "mcpServer": {
+    "command": "npx",
+    "args": ["-y", "@surendranb/macos-companion-mcp"]
+  }
+}

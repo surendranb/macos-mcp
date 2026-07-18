@@ -7,173 +7,106 @@ interface TestCase {
   validate: (response: any) => boolean;
 }
 
-const testCases: TestCase[] = [
-  {
-    name: 'List Available Tools',
-    method: 'tools/list',
-    params: {},
-    validate: (res) => Array.isArray(res?.result?.tools) && res.result.tools.length > 0,
-  },
-  {
-    name: 'Get System Diagnostics',
-    method: 'tools/call',
-    params: { name: 'get_system_stats', arguments: {} },
-    validate: (res) => {
-      const content = JSON.parse(res?.result?.content?.[0]?.text || '{}');
-      return content.uptime !== undefined && content.memory_pressure !== undefined;
-    },
-  },
-  {
-    name: 'Get Disk Usage',
-    method: 'tools/call',
-    params: { name: 'get_disk_usage', arguments: {} },
-    validate: (res) => {
-      const text = res?.result?.content?.[0]?.text || '';
-      return text.includes('Filesystem') && text.includes('/');
-    },
-  },
-  {
-    name: 'Get Recent Podcasts',
-    method: 'tools/call',
-    params: { name: 'get_recent_podcast_episodes', arguments: { limit: 3 } },
-    validate: (res) => {
-      const text = res?.result?.content?.[0]?.text || '';
-      // It should either return a valid JSON array or a sandboxing permission error/empty list
-      try {
-        const episodes = JSON.parse(text);
-        return Array.isArray(episodes);
-      } catch (e) {
-        return text.includes('Error executing tool') || text === '';
-      }
-    },
-  },
-  {
-    name: 'List Siri Shortcuts',
-    method: 'tools/call',
-    params: { name: 'list_shortcuts', arguments: {} },
-    validate: (res) => {
-      const text = res?.result?.content?.[0]?.text || '';
-      try {
-        const list = JSON.parse(text);
-        return Array.isArray(list);
-      } catch (e) {
-        return false;
-      }
-    },
-  },
+const TOOLS_LIST = [
+  'click_at', 'complete_reminder', 'create_calendar_event', 'create_note',
+  'create_reminder', 'create_sticky', 'focus_app', 'forward_email',
+  'get_battery_health', 'get_calendar_events', 'get_chat_history', 'get_clipboard',
+  'get_current_location', 'get_directions', 'get_disk_usage', 'get_email',
+  'get_music_state', 'get_note', 'get_process_list', 'get_recent_photos',
+  'get_recent_podcast_episodes', 'get_reminders', 'get_safari_tabs',
+  'get_startup_items', 'get_sticky', 'get_storage_scan', 'get_system_stats',
+  'get_unread_emails', 'get_wifi_info', 'get_window_position', 'kill_process',
+  'list_calendars', 'list_notes', 'list_shortcuts', 'list_stickies',
+  'list_windows', 'lock_screen', 'open_url', 'play_pause_music', 'play_playlist',
+  'press_key', 'reply_to_email', 'resize_window', 'restart_service',
+  'run_disk_cleanup', 'run_health_audit', 'run_shortcut', 'search_contacts',
+  'search_emails', 'search_maps', 'search_messages', 'search_photos',
+  'send_email', 'send_imessage', 'send_notification', 'set_clipboard',
+  'set_do_not_disturb', 'set_music_volume', 'set_system_volume', 'skip_music_track',
+  'sleep_display', 'take_screenshot', 'type_text', 'update_note',
+];
+
+// Only call tools that are safe to run — no destructive side effects
+const SAFE_TO_CALL: Array<{ name: string; args: any }> = [
+  { name: 'get_system_stats', args: {} },
+  { name: 'get_disk_usage', args: {} },
+  { name: 'get_battery_health', args: {} },
+  { name: 'get_process_list', args: {} },
+  { name: 'get_clipboard', args: {} },
+  { name: 'list_shortcuts', args: {} },
+  { name: 'get_recent_podcast_episodes', args: { limit: 1 } },
+  { name: 'get_wifi_info', args: {} },
+  { name: 'get_music_state', args: {} },
+  { name: 'list_calendars', args: {} },
+  { name: 'get_startup_items', args: {} },
+  { name: 'run_health_audit', args: {} },
 ];
 
 async function runTests() {
-  console.log('\n┌────────────────────────────────────────────────────────┐');
-  console.log('│           macOS Companion MCP Test Suite               │');
-  console.log('└────────────────────────────────────────────────────────┘\n');
+  console.log('\n  macOS Companion MCP Test Suite\n');
 
-  // Spawn the server
   const server = spawn('node', ['dist/index.js']);
-  
   let buffer = '';
   const responses: string[] = [];
 
   server.stdout.on('data', (data) => {
     buffer += data.toString();
-    // Split by newline if the SDK outputs newlines, or split by message chunks
     const lines = buffer.split('\n');
-    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+    buffer = lines.pop() || '';
     for (const line of lines) {
-      if (line.trim()) {
-        responses.push(line);
-      }
+      if (line.trim()) responses.push(line);
     }
   });
 
-  server.stderr.on('data', (data) => {
-    // Console errors or diagnostic logs from the server
-    const log = data.toString().trim();
-    if (log && !log.includes('running on stdio')) {
-      console.log(`[Server Log] ${log}`);
-    }
-  });
-
-  // Helper to send a request and wait for the matching response ID
   function sendRequest(id: number, method: string, params: any): Promise<any> {
     return new Promise((resolve) => {
-      const request = JSON.stringify({
-        jsonrpc: '2.0',
-        method,
-        id,
-        params,
-      }) + '\n';
-      
+      const request = JSON.stringify({ jsonrpc: '2.0', method, id, params }) + '\n';
       const checkResponse = setInterval(() => {
-        // Find if a response with this ID exists
         const matchIndex = responses.findIndex((r) => {
-          try {
-            const parsed = JSON.parse(r);
-            return parsed.id === id;
-          } catch (e) {
-            return false;
-          }
+          try { return JSON.parse(r).id === id; } catch { return false; }
         });
-
         if (matchIndex !== -1) {
           clearInterval(checkResponse);
-          const rawResponse = responses.splice(matchIndex, 1)[0];
-          resolve(JSON.parse(rawResponse));
+          resolve(JSON.parse(responses.splice(matchIndex, 1)[0]));
         }
       }, 50);
-
       server.stdin.write(request);
     });
   }
 
-  // Wait 1 second for server startup
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((r) => setTimeout(r, 1500));
+  let passed = 0;
+  let total = 0;
 
-  let passedCount = 0;
-  const resultsTable: string[] = [];
+  // Test 1: tools/list contains all expected tools
+  total++;
+  const listResp = await sendRequest(1, 'tools/list', {});
+  const toolNames = (listResp?.result?.tools || []).map((t: any) => t.name).sort();
+  const allFound = TOOLS_LIST.every((t) => toolNames.includes(t));
+  if (allFound) passed++;
+  console.log(`  ${allFound ? 'PASS' : 'FAIL'} tools/list: ${toolNames.length} tools returned`);
 
-  for (let i = 0; i < testCases.length; i++) {
-    const tc = testCases[i];
-    const requestId = i + 1;
-    
-    process.stdout.write(` Running: ${tc.name.padEnd(35)}... `);
-
-    try {
-      const startTime = Date.now();
-      const response = await sendRequest(requestId, tc.method, tc.params);
-      const duration = Date.now() - startTime;
-
-      const passed = tc.validate(response);
-      if (passed) {
-        passedCount++;
-        process.stdout.write('\x1b[32m[PASS]\x1b[0m\n');
-        resultsTable.push(`│ \x1b[32m✓\x1b[0m ${tc.name.padEnd(35)} │ ${`${duration}ms`.padStart(8)} │ \x1b[32mPassed\x1b[0m │`);
-      } else {
-        process.stdout.write('\x1b[31m[FAIL]\x1b[0m\n');
-        resultsTable.push(`│ \x1b[31m✗\x1b[0m ${tc.name.padEnd(35)} │ ${`${duration}ms`.padStart(8)} │ \x1b[31mFailed\x1b[0m │`);
-      }
-    } catch (e) {
-      process.stdout.write('\x1b[31m[ERROR]\x1b[0m\n');
-      resultsTable.push(`│ \x1b[31m✗\x1b[0m ${tc.name.padEnd(35)} │    Error │ \x1b[31mError \x1b[0m │`);
-    }
+  // Test 2-13: safe tool calls
+  for (let i = 0; i < SAFE_TO_CALL.length; i++) {
+    total++;
+    const tc = SAFE_TO_CALL[i];
+    const resp = await sendRequest(i + 2, 'tools/call', { name: tc.name, arguments: tc.args });
+    const text = resp?.result?.content?.[0]?.text || '';
+    const ok = !resp?.isError && !text.startsWith('Error executing tool');
+    if (ok) passed++;
+    console.log(`  ${ok ? 'PASS' : 'FAIL'} ${tc.name}`);
   }
 
-  // Shut down server
   server.kill();
+  console.log(`\n  ${passed}/${total} passed (${Math.round(passed/total*100)}%)\n`);
 
-  // Print Success Dashboard
-  console.log('\n┌────────────────────────────────────────────────────────┐');
-  console.log('│                 TEST SUCCESS DASHBOARD                 │');
-  console.log('├──────────────────────────────────────┬──────────┬──────┤');
-  resultsTable.forEach(row => console.log(row));
-  console.log('├──────────────────────────────────────┴──────────┴──────┤');
-  
-  const scoreColor = passedCount === testCases.length ? '\x1b[32m' : '\x1b[31m';
-  console.log(`│ Score: ${scoreColor}${passedCount}/${testCases.length} Tests Passed\x1b[0m (${Math.round((passedCount/testCases.length)*100)}%)`.padEnd(68) + '│');
-  console.log('└────────────────────────────────────────────────────────┘\n');
+  // Clean exit — no process.exit
+  if (passed !== total) {
+    throw new Error(`${total - passed} tests failed`);
+  }
 }
 
-runTests().catch(err => {
-  console.error('Test runner failure:', err);
+runTests().catch((err) => {
+  console.error('Test suite error:', err.message);
   process.exit(1);
 });

@@ -1,0 +1,14 @@
+{
+  "name": "macos-companion-mcp",
+  "version": "1.0.0",
+  "description": "Deeply integrates your AI agent with the macOS native substrate. Access system health, notifications, Calendar, Reminders, Notes, and native media metadata.",
+  "publisher": "surendranb",
+  "homepage": "https://macos.builditwithai.xyz",
+  "repository": "https://github.com/surendranb/macos-mcp",
+  "mcpServers": {
+    "macos-companion-mcp": {
+      "command": "npx",
+      "args": ["-y", "@surendranb/macos-companion-mcp"]
+    }
+  }
+}

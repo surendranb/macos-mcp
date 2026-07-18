@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS Companion MCP | Local AI Bridge</title>
+    <meta name="description" content="The Local Bridge Between AI Agents and the macOS Substrate.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="background-glow"></div>
+    <div class="background-glow secondary"></div>
+
+    <main class="container">
+        <header class="hero">
+            <div class="badge">
+                <i data-lucide="zap" class="icon-small"></i> v1.0.0
+            </div>
+            <h1>macOS <span class="gradient-text">Companion MCP</span></h1>
+            <p class="subtitle">The Local Bridge Between AI Agents and the macOS Substrate.</p>
+            <p class="description">You don't need another generic electron wrapper. You need raw, direct access to the native data structures already running on your machine. Hooks your agents directly into native macOS services, media, and system administration utilities.</p>
+        </header>
+
+        <section class="features">
+            <div class="feature-card glass">
+                <i data-lucide="activity" class="feature-icon"></i>
+                <h3>System Health</h3>
+                <p>Deep dive into thermal pressure, cycle counts, memory swaps, and local Time Machine snapshots.</p>
+            </div>
+            <div class="feature-card glass">
+                <i data-lucide="calendar-check" class="feature-icon"></i>
+                <h3>Native Apps</h3>
+                <p>Headless access to Reminders, Notes, and Calendar without UI bloat.</p>
+            </div>
+            <div class="feature-card glass">
+                <i data-lucide="headphones" class="feature-icon"></i>
+                <h3>Media Intel</h3>
+                <p>Directly reads SQLite databases to find exact podcast listening playback heads.</p>
+            </div>
+            <div class="feature-card glass">
+                <i data-lucide="terminal" class="feature-icon"></i>
+                <h3>Admin Control</h3>
+                <p>Triggers native Siri Shortcuts and clears DerivedData or user caches safely.</p>
+            </div>
+        </section>
+
+        <section class="installation glass">
+            <h2><i data-lucide="download-cloud"></i> Quick Setup</h2>
+            <div class="tabs">
+                <button class="tab-btn active" data-target="claude">Claude Desktop</button>
+                <button class="tab-btn" data-target="cursor">Cursor</button>
+                <button class="tab-btn" data-target="cli">Global (npx)</button>
+            </div>
+
+            <div class="tab-content active" id="claude">
+                <p>Add this to your <code>claude_desktop_config.json</code>:</p>
+                <div class="code-block">
+                    <pre><code>{
+  "mcpServers": {
+    "macos-companion-mcp": {
+      "command": "npx",
+      "args": ["-y", "@surendranb/macos-mcp"]
+    }
+  }
+}</code></pre>
+                    <button class="copy-btn" data-copy-target="claude"><i data-lucide="copy"></i></button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="cursor">
+                <p>Add this MCP server in your Cursor settings:</p>
+                <div class="code-block">
+                    <pre><code>npx -y @surendranb/macos-mcp</code></pre>
+                    <button class="copy-btn" data-copy-target="cursor"><i data-lucide="copy"></i></button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="cli">
+                <p>Run via npx instantly (Requires Node v18+):</p>
+                <div class="code-block">
+                    <pre><code>npx @surendranb/macos-mcp</code></pre>
+                    <button class="copy-btn" data-copy-target="cli"><i data-lucide="copy"></i></button>
+                </div>
+            </div>
+        </section>
+        
+        <footer>
+            <a href="https://github.com/surendranb/macos-mcp" target="_blank" class="github-link">
+                <i data-lucide="github"></i> View on GitHub
+            </a>
+        </footer>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
