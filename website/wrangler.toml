@@ -1,0 +1,13 @@
+name = "macos-mcp-site"
+main = "workers-site/index.js"
+compatibility_date = "2026-07-18"
+
+[site]
+bucket = "./public"
+
+[assets]
+directory = "./public"
+
+[[kv_namespaces]]
+binding = "builditwithai"
+id = "301cb28f45bc443cb0eedf3c66e3961b"

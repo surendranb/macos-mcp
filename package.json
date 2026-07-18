@@ -1,16 +1,44 @@
 {
   "name": "macos-mcp",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A comprehensive MCP server organized around human productivity routines for macOS knowledge workers",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "node dist/test.js"
+    "prepublishOnly": "npm run build",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "macos",
+    "productivity",
+    "knowledge-worker",
+    "automation",
+    "calendar",
+    "reminders",
+    "notes",
+    "email",
+    "messages"
+  ],
+  "author": "Surendran Balachandran",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surendranb/macos-mcp.git"
+  },
+  "homepage": "https://github.com/surendranb/macos-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/surendranb/macos-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },

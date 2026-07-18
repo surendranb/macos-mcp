@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS MCP Server - AI-Powered Productivity Assistant</title>
+    <meta name="description" content="A comprehensive Model Context Protocol server for macOS that puts AI assistants to work on your daily tasks - email, calendar, reminders, notes, messages, and system controls.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: #333;
+            background-color: #f8fafc;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+        
+        header {
+            text-align: center;
+            padding: 4rem 0 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-bottom: 3rem;
+            border-radius: 0 0 20px 20px;
+            overflow: hidden;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+        
+        header p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            color: white;
+            font-size: 1.5rem;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+        
+        .feature-card p {
+            color: #64748b;
+            line-height: 1.6;
+        }
+        
+        .cta-section {
+            text-align: center;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%);
+            border-radius: 20px;
+            margin-bottom: 3rem;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.125rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #f1f5f9;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+        
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-bottom: 3rem;
+        }
+        
+        .tech-badge {
+            background: #f1f5f9;
+            color: #334155;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 3rem;
+        }
+        
+        .footer a {
+            color: #64748b;
+            text-decoration: none;
+            margin: 0 0.5rem;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+            
+            header p {
+                font-size: 1.1rem;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+            
+            .cta-button {
+                padding: 0.875rem 2rem;
+                font-size: 1rem;
+            }
+        }
+        
+        /* Badges */
+        .badges {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .badge-license {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid [166534:0.2];
+        }
+        
+        .badge-version {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid [1e40af:0.2];
+        }
+        
+        .badge-npm {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid [92400e:0.2];
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="badges">
+                <span class="badge badge-version">v1.0.0</span>
+                <span class="badge badge-license">MIT License</span>
+                <span class="badge badge-npm">npm package</span>
+            </div>
+            <h1>macOS MCP Server</h1>
+            <p>An AI-powered productivity assistant that puts your Mac to work - controlling email, calendar, reminders, notes, messages, and system functions through natural language.</p>
+        </div>
+    </header>
+
+    <section class="stats">
+        <div class="container">
+            <div class="stat-card">
+                <span class="stat-number">29</span>
+                <span class="stat-label">Productivity Tools</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">6</span>
+                <span class="stat-label">Core Categories</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">100%</span>
+                <span class="stat-label">Open Source</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">MIT</span>
+                <span class="stat-label">Licensed</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <div class="feature-card">
+                <div class="feature-icon">📧</div>
+                <h3>Email & Messaging</h3>
+                <p>Send, read, and manage emails via Apple Mail. Send iMessages and SMS through Messages app. Search unread messages and organize your communication workflow.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📅</div>
+                <h3>Calendar & Reminders</h3>
+                <p>View, create, and manage calendar events and reminders. Get your daily agenda, set time-based alerts, and never miss an important meeting or deadline.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📝</div>
+                <h3>Notes & Knowledge</h3>
+                <p>Create, read, and search Apple Notes. Build your personal knowledge base, capture meeting notes, and organize information seamlessly.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3>Communication</h3>
+                <p>Send messages through Slack, iMessage, and other platforms. Stay connected with teammates and family without breaking your workflow.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎵</div>
+                <h3>Media & Entertainment</h3>
+                <p>Control Apple Music playback, check what's playing, skip tracks, adjust volume, and manage playlists - all through voice or text commands.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚙️</div>
+                <h3>System & Utilities</h3>
+                <p>Monitor battery health, disk usage, system performance. Run cleanup tasks, manage processes, and keep your Mac running smoothly.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Get Started in Minutes</h2>
+            <p>Transform your AI assistant into a powerful productivity partner that can actually get things done on your Mac.</p>
+            <a href="https://github.com/surendranb/macos-mcp" class="cta-button">View on GitHub</a>
+            <a href="https://github.com/surendranb/macos-mcp#readme" class="cta-button" style="margin-left: 1rem; background: transparent; color: #64748b; border: 2px solid #64748b;">Documentation</a>
+        </div>
+    </section>
+
+    <section class="tech-stack">
+        <div class="container">
+            <h2>Built With</h2>
+            <div>
+                <span class="tech-badge">Model Context Protocol</span>
+                <span class="tech-badge">TypeScript</span>
+                <span class="tech-badge">Node.js</span>
+                <span class="tech-badge">AppleScript</span>
+                <span class="tech-badge">macOS Automation</span>
+                <span class="tech-badge">Open Source</span>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Surendran Balachandran. Built with ❤️ for the AI-powered future.</p>
+            <p>
+                <a href="https://github.com/surendranb/macos-mcp">GitHub Repository</a> |
+                <a href="https://github.com/surendranb/macos-mcp/issues">Report Issues</a> |
+                <a href="https://github.com/surendranb/macos-mcp/blob/main/LICENSE">License</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

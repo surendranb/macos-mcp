@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# macOS MCP Server binary wrapper
+# This file is installed by Homebrew or the curl installer.
+# It delegates to the actual TypeScript/Node build.
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$DIR")"
+
+# If a compiled dist exists, use it; else run via node
+if [[ -f "$ROOT/dist/index.js" ]]; then
+  exec node "$ROOT/dist/index.js" "$@"
+elif [[ -f "$ROOT/src/index.ts" ]]; then
+  exec npx ts-node "$ROOT/src/index.ts" "$@"
+else
+  echo "macos-mcp: no built server found. Run 'npm run build' or install via Homebrew/npm." >&2
+  exit 1
+fi

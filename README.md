@@ -1,78 +1,105 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/modelcontextprotocol/logo/main/mcp-logo-dark.svg" alt="MCP Logo" width="120" />
-</p>
+# macos-mcp
 
-# macOS Companion MCP Server 💻
+A macOS MCP server organized around human productivity routines.
 
-[![GitHub stars](https://img.shields.io/github/stars/surendranb/macos-mcp?style=social)](https://github.com/surendranb/macos-mcp/stargazers)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://semver.org/)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/assets/project-logos/lf-best-practices-badge-87e78fee7d1c4ec49b39d8e578688f6d933f615a9fcb8d1a7cb8a67836a3c841.svg)](https://www.bestpractices.dev/projects/)
 
-**The Local Bridge Between AI Agents and the macOS Substrate.**
+## 📥 Install
 
-You don't need another generic electron wrapper. You need raw, direct access to the native data structures already running on your machine. `macos-mcp` is a bare-metal Model Context Protocol (MCP) server that hooks your agents (OpenClaw, Claude Desktop, Cursor) directly into native macOS services, media, and system administration utilities. 
-
-This is critical because context engineering is an ongoing exercise. A simple file-read tool won't help when you need to know if the CPU is throttling, what your latest podcast playback head is, or if Apple Notes is refusing to sync.
-
----
-
-## 🎯 The Toolset
-
-Highly granular tools exposed directly to your agent layer:
-
-| Domain | Tools | Actionable Intel Provided |
-| :--- | :--- | :--- |
-| **System Health** | `run_health_audit`, `get_battery_health`, `get_storage_scan`, `get_startup_items` | **Machine Intel.** Deep dive into thermal pressure, cycle counts, memory swaps, and local Time Machine snapshots. |
-| **Native Apps** | `list_calendars`, `get_calendar_events`, `create_reminder`, `get_note`, `send_imessage` | **Productivity.** Headless access to Reminders, Notes, and Calendar without UI bloat. |
-| **Media / Web** | `get_music_state`, `get_safari_tabs`, `get_recent_podcast_episodes` | **Context.** Directly reads `MTLibrary.sqlite` to find exact podcast listening playback heads. |
-| **Admin** | `run_disk_cleanup`, `kill_process`, `restart_service`, `run_shortcut` | **Control.** Triggers native `/usr/bin/shortcuts` and clears DerivedData or user caches safely. |
-
----
-
-## 🚀 Getting Started
-
-### 1. Installation
-
-Clone it, build it, and point your MCP config at the `dist/index.js` file.
+Choose your preferred method:
 
 ```bash
-git clone https://github.com/surendranb/macos-mcp.git
-cd macos-mcp
-npm install
-npm run build
+# Homebrew (macOS native, recommended)
+brew install surendranb/tap/macos-mcp
+
+# npm (global binary)
+npm install -g macos-mcp
+
+# pip (Python package)
+pip install macos-mcp
+
+# One-line installer (detects best method automatically)
+curl -fsSL https://macos-mcp.builditwithai.xyz/install.sh | sh
 ```
 
-### 2. Configuration (Claude Desktop / Cursor)
+After installation, the server runs automatically when your MCP client (like OpenCode) starts. The MCP client will discover all tools through the standard MCP protocol.
 
-Add the server to your agent's MCP settings configuration file:
+## 🎯 Purpose
 
-```json
+The first open-source MCP server deliberately organized around **human routines**:
+
+- **Communicate** – Email, Messages, Contacts
+- **Schedule & Time** – Calendar, Reminders  
+- **Remember & List** – Notes, Clipboard, Search
+- **Learn & Research** – News, Podcasts, Reading List
+- **System** – Battery, Disk, Health
+- **Ambient** – Music, Now Playing
+- **Orchestrator** – Daily Brief
+
+Instead of a flat tool list, tools are grouped by workflow context to make them discoverable and used naturally throughout the day.
+
+## 📦 Tool Count (v1.0.0)
+
+| Category | Tools | Focus |
+|----------|-------|-------|
+| Communicate | 8 | Email, Messages, Contacts |
+| Schedule & Time | 6 | Calendar, Reminders, Time Blocking |
+| Remember & List | 4 | Notes, Clipboard, Search |
+| Learn & Research | 4 | News, Podcasts, Reading List |
+| System | 3 | Battery, Disk, Health |
+| Ambient | 3 | Music, Now Playing |
+| Orchestrator | 1 | Daily Brief |
+
+**Total: 29 curated productivity tools** (full 64-tool set in `dev` branch)
+
+## 🚀 Usage
+
+After installation, the `macos-mcp` command is available globally. Your MCP client will auto-discover the server.
+
+### Manual Start
+
+```bash
+macos-mcp
+```
+
+The server outputs: `macOS Companion MCP Server running on stdio`
+
+## 🧪 Testing Tools Manually
+
+Use the MCP client's tool-calling interface, or test directly:
+
+```bash
+# List available tools
+macos-mcp --list-tools
+
+# Test calendar
+curl -X POST 'http://localhost:3000' -d '{"jsonrpc":"2.0","id":1,"method":"list_calendars"}'
+
+# Test email
+curl -X POST 'http://localhost:3000' -d '{"jsonrpc":"2.0","id":2,"method":"get_unread_emails"}'
+```
+
+## 📚 Documentation
+
+- [Tool Taxonomy](docs/tool-structure.md) – How tools are organized by routine
+- [API Reference](docs/api.md) – Tool parameters and responses
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+## ⚙️ Configuration
+
+The server uses `opencode.jsonc` configuration at `~/.config/opencode/opencode.jsonc`:
+
+```jsonc
 {
-  "mcpServers": {
-    "macos-companion-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/macos-mcp/dist/index.js"]
-    }
-  }
+  "logging": { "level": "info", "file": false },
+  "rpcTransport": "stdio",
+  "startupTimeout": 30000
 }
 ```
 
-*Note: Replace `/absolute/path/to/` with the actual path to where you cloned the repository.*
+## 📜 License
 
----
-
-## 🛠️ Project Philosophy (The "Anti-Slop" Rules)
-
-This project focuses on **bare-metal efficiency** for local AI agents:
-1. **Zero Sloppy Abstractions:** We hit `/usr/bin/shortcuts` explicitly. No PATH collisions with python environments.
-2. **No Bulky SQLite Bindings:** The server executes queries against local databases using macOS's built-in `sqlite3` command-line utility. This prevents heavy native compilation failures of `node-sqlite` packages on Apple Silicon.
-3. **Fire and Forget Warmups:** Notes and Reminders have aggressive headless cold-start times. We background `osascript` calls at startup to warm the process memory so the agent isn't left waiting.
-4. **Local Only:** All processing stays on the machine.
-
----
-
-## 🧪 Testing
-
-A regular laptop combined with basic testing harnesses is enough. Run `npm run test` to spin up a headless stdio test suite that probes the endpoints and outputs a clean success dashboard.
-
-## License
-MIT License
+MIT © 2026 Surendran Balachandran
