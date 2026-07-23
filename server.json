@@ -1,0 +1,61 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "com.surendranb/macos-mcp",
+  "description": "macOS MCP server with 37 tools for calendar, mail, reminders, notes, music, battery, camera, microphone, and system metrics — designed for agents that need local OS access.",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/surendranb/macos-mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registry_type": "npm",
+      "registry_base_url": "https://registry.npmjs.org",
+      "identifier": "macos-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environment_variables": []
+    }
+  ],
+  "tools": [
+    { "name": "capture_camera_snapshot", "description": "Takes a photo via built-in camera and returns as base64 JPEG" },
+    { "name": "get_ambient_noise", "description": "Records a short audio sample via mic and returns dB levels" },
+    { "name": "capture_audio", "description": "Records audio to WAV file (up to 30s)" },
+    { "name": "get_battery_health", "description": "Detailed battery status: cycle count, max capacity, condition" },
+    { "name": "get_system_stats", "description": "CPU load, memory pressure, battery metrics, thermal level" },
+    { "name": "get_disk_usage", "description": "Disk usage statistics from df" },
+    { "name": "get_storage_scan", "description": "Deep storage scan: home directory sizes, caches, snapshots" },
+    { "name": "run_health_audit", "description": "Comprehensive health audit: compute, memory, storage, battery" },
+    { "name": "get_process_list", "description": "Active processes with resource usage" },
+    { "name": "get_startup_items", "description": "Login items and LaunchAgents" },
+    { "name": "run_disk_cleanup", "description": "Prunes cache folders and empties trash" },
+    { "name": "open_url", "description": "Opens a URL in default browser" },
+    { "name": "send_imessage", "description": "Sends an iMessage/SMS via Messages app" },
+    { "name": "get_safari_tabs", "description": "All open Safari tab URLs and titles" },
+    { "name": "list_calendars", "description": "Lists available calendar names" },
+    { "name": "get_calendar_events", "description": "Calendar events for a date range" },
+    { "name": "create_calendar_event", "description": "Creates a new calendar event" },
+    { "name": "get_reminders", "description": "Active reminders" },
+    { "name": "create_reminder", "description": "Creates a new reminder" },
+    { "name": "complete_reminder", "description": "Marks a reminder as completed" },
+    { "name": "list_notes", "description": "Lists note titles and IDs" },
+    { "name": "get_note", "description": "Retrieves note body by ID" },
+    { "name": "create_note", "description": "Creates a new note" },
+    { "name": "update_note", "description": "Appends content to a note" },
+    { "name": "get_music_state", "description": "Current playback state and track metadata" },
+    { "name": "play_playlist", "description": "Plays a playlist by name" },
+    { "name": "set_music_volume", "description": "Sets volume 0–100" },
+    { "name": "skip_music_track", "description": "Next or previous track" },
+    { "name": "play_pause_music", "description": "Toggles play/pause" },
+    { "name": "get_recent_podcast_episodes", "description": "Recent podcast episodes with progress" },
+    { "name": "list_shortcuts", "description": "Lists configured Siri Shortcuts" },
+    { "name": "get_ambient_noise", "description": "dB reading from microphone" },
+    { "name": "capture_audio", "description": "Record audio to WAV file" },
+    { "name": "capture_camera_snapshot", "description": "Take photo via camera" },
+    { "name": "send_imessage", "description": "Send iMessage" },
+    { "name": "open_url", "description": "Open URL in browser" }
+  ]
+}

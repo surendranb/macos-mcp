@@ -1,0 +1,12 @@
+{
+  "name": "macos-mcp",
+  "version": "1.0.0",
+  "description": "Gemini CLI Extension for macOS MCP — 37 tools for system sensing, calendar, mail, reminders, notes, music, and more",
+  "repository": "https://github.com/surendranb/macos-mcp",
+  "author": "Surendran B",
+  "mcpServer": {
+    "command": "npx",
+    "args": ["-y", "macos-mcp"],
+    "env": {}
+  }
+}

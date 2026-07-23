@@ -1,8 +1,11 @@
 {
   "name": "macos-mcp",
   "version": "1.0.0",
-  "description": "A comprehensive MCP server organized around human productivity routines for macOS knowledge workers",
+  "description": "macOS MCP server — 37 tools for AI agents (calendar, mail, notes, music, camera, system sensing)",
   "main": "dist/index.js",
+  "bin": {
+    "macos-mcp": "dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",

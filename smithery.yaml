@@ -1,0 +1,11 @@
+# Smithery.ai Configuration Manifest for macOS MCP
+startCommand:
+  type: stdio
+  command: "npx"
+  args:
+    - "-y"
+    - "macos-mcp"
+configSchema:
+  type: object
+  required: []
+  properties: {}
