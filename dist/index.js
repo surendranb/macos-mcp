@@ -1,50 +1,15 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-const index_js_1 = require("@modelcontextprotocol/sdk/server/index.js");
-const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
-const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
-const child_process_1 = require("child_process");
-const util_1 = require("util");
-const path = __importStar(require("path"));
-const os = __importStar(require("os"));
-const execAsync = (0, util_1.promisify)(child_process_1.exec);
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, ErrorCode, McpError, } from '@modelcontextprotocol/sdk/types.js';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
+import * as os from 'os';
+const execAsync = promisify(exec);
 // Helper to run AppleScript by feeding it to osascript's stdin
 function runAppleScript(script) {
     return new Promise((resolve, reject) => {
-        const proc = (0, child_process_1.spawn)('osascript', []);
+        const proc = spawn('osascript', []);
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', (data) => { stdout += data.toString(); });
@@ -62,7 +27,7 @@ function runAppleScript(script) {
     });
 }
 // Initialize MCP Server
-const server = new index_js_1.Server({
+const server = new Server({
     name: 'macos-companion-mcp',
     version: '1.0.0',
 }, {
@@ -377,19 +342,52 @@ const TOOLS = [
             },
         },
     },
+    // 📷 Ambient Sensing
+    {
+        name: 'capture_camera_snapshot',
+        description: 'Takes a photo using the built-in camera via imagesnap. Returns JPEG as base64 data URL. Use: ambient light sensing, health PPG read, presence detection.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                delay: { type: 'number', default: 1, description: 'Warmup delay in seconds before capture (default 1)' },
+                quality: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium', description: 'JPEG quality' },
+            },
+        },
+    },
+    {
+        name: 'get_ambient_noise',
+        description: 'Records a short audio sample via microphone and measures ambient noise level in decibels. Returns average dB, peak dB, and classification (quiet/moderate/loud).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                duration: { type: 'number', default: 3, description: 'Recording duration in seconds (default 3, max 10)' },
+            },
+        },
+    },
+    {
+        name: 'capture_audio',
+        description: 'Records an audio clip via microphone and saves to a temp WAV file. Returns file path, duration, and sample rate.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                duration: { type: 'number', default: 5, description: 'Recording duration in seconds (default 5, max 30)' },
+            },
+        },
+    },
 ];
 // Register list tools handler
-server.setRequestHandler(types_js_1.ListToolsRequestSchema, async () => {
+server.setRequestHandler(ListToolsRequestSchema, async () => {
     return { tools: TOOLS };
 });
 // Register call tool handler
-server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     try {
         switch (name) {
             // 📅 Calendar & Reminders
             case 'list_calendars': {
                 const stdout = await runAppleScript(`
+          tell application "Calendar" to launch
           tell application "Calendar"
             set output to ""
             repeat with c in every calendar
@@ -716,7 +714,7 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
                 const { to, message } = args;
                 await runAppleScript(`
           tell application "Messages"
-            send "${message}" to buddy "${to}" of service "iMessage"
+            send "${message}" to buddy "${to}" of service type iMessage
           end tell
         `);
                 return {
@@ -789,7 +787,7 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
                 }
                 catch (e) { }
                 try {
-                    const { stdout: du } = await execAsync(`du -xh -d 1 "$HOME" | sort -rh | head -15`);
+                    const { stdout: du } = await execAsync(`du -xh -d 2 "$HOME" | sort -rh | head -15`);
                     stats.home_folders = du.trim();
                 }
                 catch (e) { }
@@ -854,7 +852,7 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
                 // Storage
                 try {
                     const { stdout: df } = await execAsync('df -h /System/Volumes/Data | awk "NR==1 || NR==2"');
-                    const { stdout: du } = await execAsync(`du -xh -d 1 "$HOME" | sort -rh | head -15`);
+                    const { stdout: du } = await execAsync(`du -xh -d 2 "$HOME" | sort -rh | head -15`);
                     audit.storage = { df: df.trim(), home_folders: du.trim() };
                 }
                 catch (e) { }
@@ -1008,7 +1006,7 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
                     await execAsync(`pkill -9 -f "${pName}"`);
                     return { content: [{ type: 'text', text: `Killed process matching "${pName}"` }] };
                 }
-                throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidParams, 'Must provide either pid or name');
+                throw new McpError(ErrorCode.InvalidParams, 'Must provide either pid or name');
             }
             case 'restart_service': {
                 const { service } = args;
@@ -1052,8 +1050,48 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
                     content: [{ type: 'text', text: JSON.stringify(episodes, null, 2) }],
                 };
             }
+            // 📷 Ambient Sensing
+            case 'capture_camera_snapshot': {
+                const { delay = 1, quality = 'medium' } = args;
+                const outPath = `/tmp/macos-mcp-cam-${Date.now()}.jpg`;
+                const qualityMap = { low: '50', medium: '75', high: '90' };
+                await execAsync(`/opt/homebrew/bin/imagesnap -w ${delay} -q ${qualityMap[quality] || '75'} "${outPath}"`);
+                const { stdout } = await execAsync(`base64 -i "${outPath}"`);
+                await execAsync(`rm -f "${outPath}"`);
+                return {
+                    content: [{ type: 'text', text: JSON.stringify({ image: `data:image/jpeg;base64,${stdout.trim()}`, size_kb: Math.round(stdout.length * 0.75 / 1024), captured_at: new Date().toISOString() }, null, 2) }],
+                };
+            }
+            case 'get_ambient_noise': {
+                const { duration = 3 } = args;
+                const outPath = `/tmp/m-mcp-audio-${Date.now()}.wav`;
+                await execAsync(`/opt/homebrew/bin/rec -q -c 1 -r 16000 -b 16 -e signed-integer "${outPath}" trim 0 ${duration} 2>/dev/null`);
+                const { stdout } = await execAsync(`/opt/homebrew/bin/sox "${outPath}" -n stat 2>&1`);
+                await execAsync(`rm -f "${outPath}"`);
+                const rmsMatch = stdout.match(/RMS\s+amplitude:\s+([\d.]+)/);
+                const peakMatch = stdout.match(/Maximum\s+amplitude:\s+([\d.]+)/);
+                const rms = rmsMatch ? parseFloat(rmsMatch[1]) : 0;
+                const peak = peakMatch ? parseFloat(peakMatch[1]) : 0;
+                const rmsDb = rms > 0 ? 20 * Math.log10(rms) : -120;
+                const peakDb = peak > 0 ? 20 * Math.log10(peak) : -120;
+                const level = rmsDb > -30 ? 'loud' : rmsDb > -50 ? 'moderate' : 'quiet';
+                return {
+                    content: [{ type: 'text', text: JSON.stringify({ rms_db: Math.round(rmsDb * 10) / 10, peak_db: Math.round(peakDb * 10) / 10, level }, null, 2) }],
+                };
+            }
+            case 'capture_audio': {
+                const { duration = 5 } = args;
+                const outPath = `/tmp/m-mcp-audio-${Date.now()}.wav`;
+                await execAsync(`/opt/homebrew/bin/rec -q -c 1 -r 16000 -b 16 -e signed-integer "${outPath}" trim 0 ${duration} 2>/dev/null`);
+                const { stdout: statOut } = await execAsync(`/opt/homebrew/bin/sox "${outPath}" -n stat 2>&1`);
+                const durMatch = statOut.match(/Length \(seconds\):\s+([\d.]+)/);
+                const srMatch = statOut.match(/Sample Rate:\s+(\d+)/);
+                return {
+                    content: [{ type: 'text', text: JSON.stringify({ file_path: outPath, duration_sec: durMatch ? parseFloat(durMatch[1]) : duration, sample_rate: srMatch ? parseInt(srMatch[1]) : 16000 }, null, 2) }],
+                };
+            }
             default:
-                throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, `Tool not found: ${name}`);
+                throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
         }
     }
     catch (error) {
@@ -1065,14 +1103,16 @@ server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
 });
 // Start the server using stdio transport
 async function run() {
-    const transport = new stdio_js_1.StdioServerTransport();
+    const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('macOS Companion MCP Server running on stdio');
     // ponytail: warm up slow-starting apps in background at init so first tool call isn't cold.
-    // Notes and Reminders take 15-40s to launch headlessly; open them now, don't wait.
-    const warmUp = (app) => (0, child_process_1.exec)(`osascript -e 'tell application "${app}" to get name'`, () => { });
+    // Notes, Reminders, Calendar, and Mail take 15-40s to launch headlessly; open them now, don't wait.
+    const warmUp = (app) => exec(`osascript -e 'tell application "${app}" to launch'`, () => { });
     warmUp('Notes');
     warmUp('Reminders');
+    warmUp('Calendar');
+    warmUp('Mail');
 }
 run().catch((error) => {
     console.error('Fatal error running server:', error);
