@@ -4,7 +4,7 @@ A macOS MCP server that gives AI agents access to your local system — calendar
 music, battery, camera, microphone, and more. All 37 tools run on stdio, no HTTP server needed.
 
 ```
-npm install -g macos-mcp
+npm install -g @surendranb/macos-companion-mcp
 ```
 
 Or add to your MCP client config:
@@ -14,7 +14,7 @@ Or add to your MCP client config:
   "mcpServers": {
     "macos": {
       "command": "npx",
-      "args": ["-y", "macos-mcp"]
+      "args": ["-y", "@surendranb/macos-companion-mcp"]
     }
   }
 }
