@@ -91,6 +91,7 @@ export interface ClientIdentity {
 
 interface TelemetryEvent {
   event: string;
+  mcp_server_name: string;
   install_id: string;
   server_version: string;
   os: string;
@@ -139,6 +140,9 @@ export function initTelemetry(version: string): void {
 function baseEvent(event: string, identity?: ClientIdentity): TelemetryEvent {
   return {
     event,
+    // Separates macos events from the other MCPs sharing this PostHog project
+    // (curate at query time — same pattern as the Python servers).
+    mcp_server_name: 'macos',
     install_id: getInstallId(),
     server_version: serverVersion,
     os: process.platform,
