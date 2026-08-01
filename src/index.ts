@@ -1,18 +1,80 @@
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ErrorCode,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+// MCP 2.0 (2026-07-28 spec) — TypeScript SDK v2.
+// The v2 SDK ships as scoped packages: `@modelcontextprotocol/server` (this
+// server), `/server/stdio` (the stdio transport). The low-level `Server` +
+// `setRequestHandler` API survives v2, but the handler-registration signature
+// changed: v1 took a Zod request schema (e.g. `CallToolRequestSchema`); v2
+// takes the method STRING ('tools/call'). `McpError`/`ErrorCode` are gone —
+// v2 uses typed error classes, but our handlers already convert any thrown
+// error into an `isError` text result, so plain `Error` is sufficient.
+import { Server } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as os from 'os';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import {
+  initTelemetry,
+  trackServerStart,
+  trackToolExecuted,
+  trackToolsListed,
+  type ClientIdentity,
+} from './telemetry.js';
 
 const execAsync = promisify(exec);
+
+// Resolve our own version from package.json (single source of truth) for both
+// the server handshake and the telemetry product User-Agent.
+function resolveServerVersion(): string {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    // dist/index.js -> ../package.json
+    const pkgPath = path.join(here, '..', 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+const SERVER_VERSION = resolveServerVersion();
+
+// Reserved `_meta` envelope key carrying clientInfo on the 2026-07-28 era.
+const CLIENT_INFO_META_KEY = 'io.modelcontextprotocol/clientInfo';
+
+/**
+ * Dual-era client identity. On the 2026-07-28 era the SDK exposes the client
+ * via `getClientVersion()` (name/version) and `getNegotiatedProtocolVersion()`;
+ * this holds for legacy-handshake clients too, since the SDK stores the
+ * initialize-declared clientInfo the same way. As a defensive fallback we also
+ * read the reserved clientInfo `_meta` key off the request.
+ */
+function readClientIdentity(request?: { params?: { _meta?: Record<string, unknown> } }): ClientIdentity {
+  const identity: ClientIdentity = {};
+  try {
+    const info = server.getClientVersion();
+    if (info) {
+      identity.clientName = info.name;
+      identity.clientVersion = info.version;
+    }
+    const proto = server.getNegotiatedProtocolVersion();
+    if (proto) identity.protocolVersion = proto;
+  } catch {
+    /* pre-handshake or unavailable */
+  }
+  // Fallback: 2026-era per-request clientInfo envelope, if the getters were empty.
+  if (!identity.clientName) {
+    const meta = request?.params?._meta;
+    const raw = meta?.[CLIENT_INFO_META_KEY];
+    if (raw && typeof raw === 'object') {
+      const ci = raw as { name?: string; version?: string };
+      if (ci.name) identity.clientName = ci.name;
+      if (ci.version) identity.clientVersion = ci.version;
+    }
+  }
+  return identity;
+}
 
 // Helper to run AppleScript by feeding it to osascript's stdin
 function runAppleScript(script: string): Promise<string> {
@@ -34,11 +96,14 @@ function runAppleScript(script: string): Promise<string> {
   });
 }
 
+// Initialize telemetry (product UA = macos-mcp/<version>).
+initTelemetry(SERVER_VERSION);
+
 // Initialize MCP Server
 const server = new Server(
   {
     name: 'macos-companion-mcp',
-    version: '1.0.0',
+    version: SERVER_VERSION,
   },
   {
     capabilities: {
@@ -46,6 +111,9 @@ const server = new Server(
     },
   }
 );
+
+// Fire once per connection when a client first lists tools (a real handshake).
+let toolsListedFired = false;
 
 // Define available tools
 const TOOLS = [
@@ -395,16 +463,27 @@ const TOOLS = [
   },
 ];
 
-// Register list tools handler
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools: TOOLS };
+// Register list tools handler (v2: method string 'tools/list', not a schema).
+// v2 types the result strictly (inputSchema.type is the literal 'object');
+// our TOOLS literals widen to `string`, so we hand the SDK the list as-is via
+// a cast. The JSON on the wire is byte-identical to what v1 emitted.
+server.setRequestHandler('tools/list', async (request) => {
+  if (!toolsListedFired) {
+    toolsListedFired = true;
+    trackToolsListed(readClientIdentity(request as any));
+  }
+  return { tools: TOOLS } as any;
 });
 
-// Register call tool handler
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// Register call tool handler (v2: method string 'tools/call', not a schema).
+server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
+  // Client identity for telemetry — captured BEFORE the call, never the args.
+  const identity = readClientIdentity(request as any);
 
-  try {
+  // Inner dispatch keeps every existing `case` return byte-for-byte; the outer
+  // wrapper records tool_executed (name + status ONLY — never args/results).
+  const dispatch = async (): Promise<any> => {
     switch (name) {
       // 📅 Calendar & Reminders
       case 'list_calendars': {
@@ -1048,7 +1127,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           await execAsync(`pkill -9 -f "${pName}"`);
           return { content: [{ type: 'text', text: `Killed process matching "${pName}"` }] };
         }
-        throw new McpError(ErrorCode.InvalidParams, 'Must provide either pid or name');
+        throw new Error('Must provide either pid or name');
       }
 
       case 'restart_service': {
@@ -1146,9 +1225,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       default:
-        throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
+        throw new Error(`Tool not found: ${name}`);
     }
+  };
+
+  try {
+    const result = await dispatch();
+    // A handler may itself return an isError result (its own try/catch); treat
+    // that as an error for telemetry purposes.
+    const status = result && result.isError ? 'error' : 'success';
+    trackToolExecuted(name, status, identity);
+    return result;
   } catch (error) {
+    trackToolExecuted(name, 'error', identity, 'tool_exception');
     return {
       content: [{ type: 'text', text: `Error executing tool "${name}": ${(error as Error).message}` }],
       isError: true,
@@ -1161,6 +1250,9 @@ async function run() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('macOS Companion MCP Server running on stdio');
+
+  // Anonymous boot ping (fire-and-forget; honors opt-out inside).
+  trackServerStart();
 
   // ponytail: warm up slow-starting apps in background at init so first tool call isn't cold.
   // Notes, Reminders, Calendar, and Mail take 15-40s to launch headlessly; open them now, don't wait.
