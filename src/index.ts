@@ -13,8 +13,9 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as os from 'os';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { XMLParser } from 'fast-xml-parser';
 import {
   initTelemetry,
   trackServerStart,
@@ -23,7 +24,12 @@ import {
   type ClientIdentity,
 } from './telemetry.js';
 
-const execAsync = promisify(exec);
+// exec with a sane maxBuffer — the 1MB default kills any tool that returns a
+// big payload (process lists, storage scans, podcast transcripts via cat).
+const execRaw = promisify(exec);
+function execAsync(cmd: string, opts: { maxBuffer?: number } = {}): Promise<{ stdout: string }> {
+  return execRaw(cmd, { maxBuffer: opts.maxBuffer ?? 32 * 1024 * 1024 });
+}
 
 // Resolve our own version from package.json (single source of truth) for both
 // the server handshake and the telemetry product User-Agent.
@@ -76,15 +82,28 @@ function readClientIdentity(request?: { params?: { _meta?: Record<string, unknow
   return identity;
 }
 
-// Helper to run AppleScript by feeding it to osascript's stdin
+// Helper to run AppleScript by feeding it to osascript's stdin.
+// ponytail: 60s hard timeout — without it, any AppleScript hang (e.g. a
+// per-object property loop over iCloud-backed apps like Reminders/Notes)
+// hangs the server forever, which is exactly the "can't deal with basic
+// requests" failure. Per-app specific timeouts if a real op needs >60s.
+const APPLESCRIPT_TIMEOUT_MS = 60_000;
 function runAppleScript(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn('osascript', []);
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const timeout = setTimeout(() => {
+      settled = true;
+      proc.kill('SIGKILL');
+      reject(new Error(`AppleScript timed out after ${APPLESCRIPT_TIMEOUT_MS / 1000}s`));
+    }, APPLESCRIPT_TIMEOUT_MS);
     proc.stdout.on('data', (data: Buffer | string) => { stdout += data.toString(); });
     proc.stderr.on('data', (data: Buffer | string) => { stderr += data.toString(); });
     proc.on('close', (code: number | null) => {
+      if (settled) return;
+      clearTimeout(timeout);
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -95,6 +114,42 @@ function runAppleScript(script: string): Promise<string> {
     proc.stdin.end();
   });
 }
+
+// Newest cached transcript under the group-container TTML root. Used by
+// play_podcast_episode to detect the fresh download; walks with fs only
+// (find/cat exec broke on Group Containers before).
+function newestCachedTranscript(): { path: string; mtimeMs: number } | null {
+  const ttmlRoot = path.join(
+    os.homedir(),
+    'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache/Assets/TTML'
+  );
+  let newest: { path: string; mtimeMs: number } | null = null;
+  const walk = (dir: string, depth: number) => {
+    if (depth > 8) return;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, depth + 1);
+      else if (/^transcript_\d+\.ttml-\d+\.ttml$/.test(entry.name)) {
+        try {
+          const mtimeMs = statSync(full).mtimeMs;
+          if (!newest || mtimeMs > newest.mtimeMs) newest = { path: full, mtimeMs };
+        } catch {
+          // racing deletion — skip
+        }
+      }
+    }
+  };
+  walk(ttmlRoot, 0);
+  return newest;
+}
+
+
 
 // Initialize telemetry (product UA = macos-mcp/<version>).
 initTelemetry(SERVER_VERSION);
@@ -419,14 +474,50 @@ const TOOLS = [
   // Podcasts
   {
     name: 'get_recent_podcast_episodes',
-    description: 'Gets recent podcast episodes, release dates, and listening progress from MTLibrary.sqlite',
+    description: 'Lists podcast episodes from MTLibrary.sqlite, optionally filtered by release date range and/or title query. Returns pubDate, podcastTitle, title, playhead, duration, playState, transcriptId (path fragment), episodeId (Apple store track id). Pass a title to open_podcast_episode, and transcriptId to get_podcast_transcript once cached.',
     inputSchema: {
       type: 'object',
       properties: {
         limit: { type: 'number', default: 10, description: 'Max episodes to return' },
         inProgressOnly: { type: 'boolean', default: false, description: 'Only return partially listened episodes' },
+        fromDate: { type: 'string', description: 'Release date lower bound, inclusive, YYYY-MM-DD (episodes published on/after this date)' },
+        toDate: { type: 'string', description: 'Release date upper bound, inclusive, YYYY-MM-DD (episodes published on/before this date)' },
+        query: { type: 'string', description: 'Optional case-insensitive substring match on episode title' },
       },
     },
+  },
+  {
+    name: 'get_podcast_transcript',
+    description: 'Retrieves the full transcript for an episode from the local Apple Podcasts TTML cache. Returns speaker-attributed text with timestamps. Requires the episode to have been opened/played at least once so the transcript file was cached locally.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        transcriptId: { type: 'string', description: 'Transcript identifier from get_recent_podcast_episodes (transcriptId field). Path fragment like "PodcastContent221/v4/.../transcript_1000778999859.ttml"' },
+        includeTimestamps: { type: 'boolean', default: true, description: 'Include begin/end timestamps in the output' },
+      },
+      required: ['transcriptId'],
+    },
+  },
+  {
+    name: 'open_podcast_episode',
+    description: 'Searches Apple Podcasts for an episode title (from get_recent_podcast_episodes) and opens its episode page. Verified UI flow: Cmd+F, clipboard-paste the title (keystroke typing corrupts punctuation), open the top search result. Use before play_podcast_episode. The title should be fairly exact — the top search result is what gets opened.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Episode title from get_recent_podcast_episodes, e.g. "20VC: Jensen\'s Open-Weights Letter". Exact titles give exact results.' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'play_podcast_episode',
+    description: 'Plays the currently open episode page in Apple Podcasts (AX-discovers the play pill — position varies per page, so it is never hardcoded — and clicks it), then polls the TTML cache for up to ~15s for the transcript download. Returns the cached transcript path and transcriptId for get_podcast_transcript. Requires open_podcast_episode to have been called first.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'pause_podcast_episode',
+    description: 'Pauses Apple Podcasts playback via the Controls menu bar item. Note: the MTLibrary play_state column is unreliable (stays 1 while paused) — use the playhead field of get_recent_podcast_episodes to verify pause.',
+    inputSchema: { type: 'object', properties: {} },
   },
 
   // 📷 Ambient Sensing
@@ -524,28 +615,31 @@ server.setRequestHandler('tools/call', async (request) => {
 
       case 'get_reminders': {
         const filterList = (args as any)?.list;
+        // Batched property fetch. Per-object `repeat` property access is
+        // pathologically slow over iCloud (tested: ~2s per reminder for
+        // `due date`). `X of every reminder of aList` is ONE AppleEvent.
         let script = `
           tell application "Reminders"
             set output to ""
-            set allLists to every list
-            repeat with aList in allLists
+            repeat with aList in every list
               set listName to name of aList
         `;
         if (filterList) {
           script += `if listName is "${filterList}" then`;
         }
         script += `
-              set allReminders to (every reminder of aList whose completed is false)
-              repeat with aReminder in allReminders
-                set rName to name of aReminder
-                set rId to id of aReminder
+              set allReminders to every reminder of aList whose completed is false
+              set rNames to name of every reminder of aList whose completed is false
+              set rIds to id of every reminder of aList whose completed is false
+              set rDues to due date of every reminder of aList whose completed is false
+              repeat with i from 1 to count of allReminders
                 set rDue to ""
                 try
-                  if due date of aReminder is not missing value then
-                    set rDue to due date of aReminder as string
+                  if item i of rDues is not missing value then
+                    set rDue to (item i of rDues as string)
                   end if
                 end try
-                set output to output & listName & "|" & rName & "|" & rId & "|" & rDue & "\\n"
+                set output to output & listName & "|" & item i of rNames & "|" & item i of rIds & "|" & rDue & "\\n"
               end repeat
         `;
         if (filterList) {
@@ -616,15 +710,24 @@ server.setRequestHandler('tools/call', async (request) => {
 
       // 📝 Notes
       case 'list_notes': {
+        // Batched property fetch — `name of every note` is ONE AppleEvent
+        // (tested: 352 notes in ~0.5s); per-object access hangs.
         const stdout = await runAppleScript(`
           tell application "Notes"
+            set allNotes to every note
+            set nNames to name of every note
+            set nIds to id of every note
+            set nFolders to ""
+            try
+              set nFolders to name of folder of every note
+            end try
             set output to ""
-            repeat with aNote in every note
-              set folderName to ""
+            repeat with i from 1 to count of allNotes
+              set fname to ""
               try
-                set folderName to name of folder of aNote
+                if nFolders is not "" then set fname to item i of nFolders
               end try
-              set output to output & name of aNote & "|" & id of aNote & "|" & folderName & "\\n"
+              set output to output & item i of nNames & "|" & item i of nIds & "|" & fname & "\\n"
             end repeat
             return output
           end tell
@@ -1140,7 +1243,9 @@ server.setRequestHandler('tools/call', async (request) => {
 
       // 🎙️ Podcasts
       case 'get_recent_podcast_episodes': {
-        const { limit = 10, inProgressOnly = false } = args as { limit: number; inProgressOnly: boolean };
+        const { limit = 10, inProgressOnly = false, fromDate, toDate, query } = args as {
+          limit: number; inProgressOnly: boolean; fromDate?: string; toDate?: string; query?: string;
+        };
         const dbPath = path.join(
           os.homedir(),
           'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Documents/MTLibrary.sqlite'
@@ -1153,19 +1258,27 @@ server.setRequestHandler('tools/call', async (request) => {
             e.ZTITLE as episode_title,
             e.ZPLAYHEAD as playhead,
             e.ZDURATION as duration,
-            e.ZPLAYSTATE as play_state
+            e.ZPLAYSTATE as play_state,
+            e.ZTRANSCRIPTIDENTIFIER as transcript_id,
+            e.ZSTORETRACKID as episode_id,
+            p.ZSTORECOLLECTIONID as podcast_id
           FROM ZMTEPISODE e 
           JOIN ZMTPODCAST p ON e.ZPODCAST = p.Z_PK
         `;
-
-        if (inProgressOnly) {
-          sql += ' WHERE e.ZPLAYSTATE = 1 ';
-        }
+        // ponytail: date bounds via strftime('%s', ...) on the unix epoch — ZPUBDATE is Apple epoch (2001), +978307200 converts. Bounds are UTC midnight; good enough for daily granularity.
+        const where: string[] = [];
+        if (inProgressOnly) where.push(' e.ZPLAYSTATE = 1 ');
+        // ponytail: unixepoch() (not strftime) — strftime returns TEXT and
+        // INTEGER >= TEXT is always false in SQLite value comparisons.
+        if (fromDate) where.push(` (e.ZPUBDATE + 978307200) >= unixepoch('${fromDate}') `);
+        if (toDate) where.push(` (e.ZPUBDATE + 978307200) < unixepoch('${toDate}', '+1 day') `);
+        if (query) where.push(` e.ZTITLE LIKE '%${query.replace(/'/g, "''")}%' `);
+        if (where.length) sql += ` WHERE ${where.join(' AND ')} `;
         sql += ` ORDER BY e.ZPUBDATE DESC LIMIT ${limit}; `;
 
         const { stdout } = await execAsync(`sqlite3 "${dbPath}" "${sql}"`);
         const episodes = stdout.split('\n').filter(Boolean).map((line: string) => {
-          const [pubDate, podcast, title, playhead, duration, playState] = line.split('|');
+          const [pubDate, podcast, title, playhead, duration, playState, transcriptId, episodeId, podcastId] = line.split('|');
           return {
             pubDate,
             podcast,
@@ -1173,11 +1286,266 @@ server.setRequestHandler('tools/call', async (request) => {
             playhead: parseFloat(playhead) || 0,
             duration: parseFloat(duration) || 0,
             playState: parseInt(playState) || 0,
+            transcriptId: transcriptId || null,
+            episodeId: episodeId || null,
+            podcastId: podcastId || null,
           };
         });
 
         return {
           content: [{ type: 'text', text: JSON.stringify(episodes, null, 2) }],
+        };
+      }
+
+      case 'open_podcast_episode': {
+        const { title } = args as { title: string };
+        if (!title) {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: 'Missing title. Pass the episode title from get_recent_podcast_episodes.' }) }], isError: true };
+        }
+        // Verified 2x (Ruby Thelot a16z, 20VC Jensen): Cmd+F → focus search
+        // field → Cmd+A (clear stale text) → clipboard-paste title (keystroke
+        // typing corrupts ":' spaces — "20VC: Jensen's…" → "20VC :Jensen
+        // 'sOpen-Weigh tsLetter") → Return → click top search result row.
+        const escaped = title.replace(/"/g, '\\"');
+        const script = `
+tell application "Podcasts" to activate
+delay 1.5
+do shell script "printf %s " & quoted form of "${escaped}" & " | pbcopy"
+tell application "System Events"
+  tell process "Podcasts"
+    set frontmost to true
+    keystroke "f" using command down
+    delay 0.8
+    try
+      set focused of first text field of window 1 to true
+    on error
+      click at {820, 56}
+    end try
+    delay 0.3
+    keystroke "a" using command down
+    keystroke "v" using command down
+    key code 36
+  end tell
+end tell
+delay 3
+tell application "System Events"
+  click at {355, 199}
+end tell
+return "opened"`;
+        await runAppleScript(script);
+        return {
+          content: [{ type: 'text', text: `Opened episode page for "${title}" (top search result). Next: play_podcast_episode to start playback and trigger the transcript download.` }],
+        };
+      }
+
+      case 'play_podcast_episode': {
+        // AX-discover the play pill: description begins "Play, Remaining
+        // Time:" / "Replay," — position varies per episode page (209 vs 257
+        // observed), so never hardcode. The bare mini-player "Play" button has
+        // no comma, so this can't hit the wrong one.
+        const discover = `
+tell application "System Events"
+  tell process "Podcasts"
+    set frontmost to true
+    set hits to {}
+    set allElems to entire contents of window 1
+    repeat with el in allElems
+      try
+        if class of el is button then
+          set d to description of el
+          if d begins with "Play," or d begins with "Replay," then
+            set p to position of el
+            set s to size of el
+            set end of hits to (((item 1 of p) + ((item 1 of s) div 2)) as text) & "," & (((item 2 of p) + ((item 2 of s) div 2)) as text)
+          end if
+        end if
+      end try
+    end repeat
+    if (count of hits) > 0 then return item 1 of hits
+    return "NOT_FOUND"
+  end tell
+end tell`;
+        const found = await runAppleScript(discover);
+        if (found === 'NOT_FOUND') {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: 'No play button found on the open episode page. Run open_podcast_episode (title) first, then retry.' }) }],
+            isError: true,
+          };
+        }
+        const [x, y] = found.split(',').map(Number);
+        const before = newestCachedTranscript();
+        await runAppleScript(`tell application "System Events" to click at {${x}, ${y}}`);
+
+        // Poll up to ~15s for the fresh TTML download (observed ~8s after play).
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const now = newestCachedTranscript();
+          if (now && (!before || now.mtimeMs > before.mtimeMs)) {
+            const id = now.path.match(/transcript_(\d+)\.ttml-\d+\.ttml$/)?.[1] || null;
+            return {
+              content: [{ type: 'text', text: JSON.stringify({ played: true, transcriptPath: now.path, transcriptId: id, waitedMs: (i + 1) * 1500 }) }],
+            };
+          }
+        }
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ played: true, newTranscriptDownloaded: false, newestCached: before?.path ?? null, note: 'No new transcript within 15s. If this episode has a transcript, retry get_podcast_transcript — it may already be cached.' }) }],
+        };
+      }
+
+      case 'pause_podcast_episode': {
+        const script = `
+tell application "System Events"
+  tell process "Podcasts"
+    set frontmost to true
+    if exists menu item "Pause" of menu 1 of menu bar item "Controls" of menu bar 1 then
+      click menu item "Pause" of menu 1 of menu bar item "Controls" of menu bar 1
+      return "Paused"
+    end if
+    return "AlreadyPaused"
+  end tell
+end tell`;
+        const state = await runAppleScript(script);
+        return {
+          content: [{ type: 'text', text: state }],
+        };
+      }
+
+      case 'get_podcast_transcript': {
+        const { transcriptId, includeTimestamps = true } = args as { transcriptId: string; includeTimestamps?: boolean };
+
+        // DB stores paths like PodcastContent221/v4/f2/20/d8/.../transcript_1000778994481.ttml
+        // Actual cache files: Assets/TTML/PodcastContent{XXX}/v4/<hex>/<uuid>/transcript_{id}.ttml-{id}.ttml
+        // Directory structure differs from the DB path — search by numeric ID.
+        const idMatch = String(transcriptId).match(/transcript_(\d+)\.ttml/);
+        if (!idMatch) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: `Invalid transcript ID format: ${transcriptId}` }) }],
+            isError: true,
+          };
+        }
+        const numericId = idMatch[1];
+        const ttmlRoot = path.join(
+          os.homedir(),
+          'Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Library/Cache/Assets/TTML'
+        );
+
+        // Walk the cache with fs — no find/cat exec: `find` exits non-zero on
+        // unreadable dirs (Group Containers), and `cat` blew the 1MB exec
+        // buffer on large transcripts. Both were reported by the trace.
+        const wanted = `transcript_${numericId}.ttml-${numericId}.ttml`;
+        let fullPath = '';
+        const walk = (dir: string, depth: number): boolean => {
+          if (fullPath || depth > 8) return !!fullPath;
+          let entries;
+          try {
+            entries = readdirSync(dir, { withFileTypes: true });
+          } catch {
+            return false; // unreadable dir — skip, don't fail the search
+          }
+          for (const entry of entries) {
+            if (entry.name === wanted) { fullPath = path.join(dir, entry.name); return true; }
+            if (entry.isDirectory() && walk(path.join(dir, entry.name), depth + 1)) return true;
+          }
+          return !!fullPath;
+        };
+        walk(ttmlRoot, 0);
+
+        if (!fullPath) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: `Transcript not cached locally for ID ${numericId}. Run open_podcast_episode (title) then play_podcast_episode to trigger the download, then retry.` }) }],
+            isError: true,
+          };
+        }
+
+        const fileContent = readFileSync(fullPath, 'utf8');
+        if (!fileContent.trim()) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: 'Transcript file is empty. Play the episode in Apple Podcasts first to trigger download.' }) }],
+            isError: true,
+          };
+        }
+
+        // Parse TTML XML
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          attributeNamePrefix: '@_',
+          isArray: (name) => ['p', 'span'].includes(name),
+        });
+        const parsed = parser.parse(fileContent);
+
+        // Extract speaker-attributed text from the parsed TTML
+        const segments: Array<{ speaker: string; text: string; begin?: string; end?: string }> = [];
+
+        const body = parsed?.tt?.body;
+        if (!body) {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: 'Could not parse TTML structure' }) }], isError: true };
+        }
+
+        const divs = body.div;
+        const paragraphs = divs ? (Array.isArray(divs) ? divs.flatMap((d: any) => (Array.isArray(d.p) ? d.p : d.p ? [d.p] : [])) : Array.isArray(divs.p) ? divs.p : divs.p ? [divs.p] : []) : [];
+
+        for (const p of paragraphs) {
+          if (!p) continue;
+          const speaker = p['@_ttm:agent'] || p['@_ttm:Agent'] || 'SPEAKER_UNKNOWN';
+          const rawBegin = p['@_begin'] || '';
+          const rawEnd = p['@_end'] || '';
+
+          // Extract text from sentence spans
+          const spans = p.span;
+          const sentences: string[] = [];
+          if (spans) {
+            const sentenceSpans = Array.isArray(spans) ? spans : [spans];
+            for (const s of sentenceSpans) {
+              if (typeof s === 'string') {
+                sentences.push(s);
+              } else if (typeof s === 'object') {
+                // Could be word-level spans inside or just text
+                if (s['#text']) {
+                  sentences.push(s['#text']);
+                } else if (s.span) {
+                  // Word-level spans — join with a space (ponytail: joining
+                  // with '' produced run-together text like "Allright,full...").
+                  const words = Array.isArray(s.span) ? s.span : [s.span];
+                  const sentence = words.map((w: any) => (typeof w === 'string' ? w : w['#text'] || '')).join(' ');
+                  sentences.push(sentence);
+                }
+              }
+            }
+          }
+
+          const text = sentences.join(' ').replace(/\s+/g, ' ').trim();
+          if (text) {
+            segments.push({
+              speaker,
+              text,
+              begin: includeTimestamps ? rawBegin : undefined,
+              end: includeTimestamps ? rawEnd : undefined,
+            });
+          }
+        }
+
+        // Format output as readable text with speaker labels
+        const duration = parsed?.tt?.body?.['@_dur'] || '';
+        const formatted = segments.map(s => {
+          const time = includeTimestamps && s.begin ? ` [${s.begin}${s.end ? ` → ${s.end}` : ''}]` : '';
+          const speakerLabel = s.speaker.replace('SPEAKER_', 'Speaker ');
+          return `${speakerLabel}${time}: ${s.text}`;
+        }).join('\n');
+
+        const result = {
+          transcript: formatted,
+          segments: segments.map(s => ({
+            speaker: s.speaker,
+            text: s.text,
+            begin: s.begin || '',
+            end: s.end || '',
+          })),
+          duration,
+          fileSize: fileContent.length,
+        };
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       }
 
