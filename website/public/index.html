@@ -1,356 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>macOS MCP Server - AI-Powered Productivity Assistant</title>
-    <meta name="description" content="A comprehensive Model Context Protocol server for macOS that puts AI assistants to work on your daily tasks - email, calendar, reminders, notes, messages, and system controls.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.7;
-            color: #333;
-            background-color: #f8fafc;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-        
-        header {
-            text-align: center;
-            padding: 4rem 0 2rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin-bottom: 3rem;
-            border-radius: 0 0 20px 20px;
-            overflow: hidden;
-        }
-        
-        header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            font-weight: 700;
-        }
-        
-        header p {
-            font-size: 1.25rem;
-            opacity: 0.9;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-bottom: 3rem;
-        }
-        
-        .feature-card {
-            background: white;
-            border-radius: 16px;
-            padding: 2rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid #e2e8f0;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        
-        .feature-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1.5rem;
-            color: white;
-            font-size: 1.5rem;
-        }
-        
-        .feature-card h3 {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: #1e293b;
-        }
-        
-        .feature-card p {
-            color: #64748b;
-            line-height: 1.6;
-        }
-        
-        .cta-section {
-            text-align: center;
-            padding: 3rem 0;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%);
-            border-radius: 20px;
-            margin-bottom: 3rem;
-        }
-        
-        .cta-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem 2.5rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 1.125rem;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        
-        .cta-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 3rem;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-            border: 1px solid #f1f5f9;
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #667eea;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            color: #64748b;
-            font-size: 0.95rem;
-        }
-        
-        .tech-stack {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            justify-content: center;
-            margin-bottom: 3rem;
-        }
-        
-        .tech-badge {
-            background: #f1f5f9;
-            color: #334155;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 2rem 0;
-            color: #64748b;
-            border-top: 1px solid #e2e8f0;
-            margin-top: 3rem;
-        }
-        
-        .footer a {
-            color: #64748b;
-            text-decoration: none;
-            margin: 0 0.5rem;
-        }
-        
-        .footer a:hover {
-            text-decoration: underline;
-        }
-        
-        @media (max-width: 768px) {
-            header h1 {
-                font-size: 2rem;
-            }
-            
-            header p {
-                font-size: 1.1rem;
-            }
-            
-            .features {
-                grid-template-columns: 1fr;
-            }
-            
-            .cta-button {
-                padding: 0.875rem 2rem;
-                font-size: 1rem;
-            }
-        }
-        
-        /* Badges */
-        .badges {
-            display: flex;
-            gap: 0.75rem;
-            justify-content: center;
-            margin-bottom: 2rem;
-            flex-wrap: wrap;
-        }
-        
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        
-        .badge-license {
-            background: #dcfce7;
-            color: #166534;
-            border: 1px solid [166534:0.2];
-        }
-        
-        .badge-version {
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid [1e40af:0.2];
-        }
-        
-        .badge-npm {
-            background: #fffbeb;
-            color: #92400e;
-            border: 1px solid [92400e:0.2];
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="macOS MCP Server — 40 tools that give AI agents hands on your Mac. Calendar, mail, notes, reminders, music, podcasts, camera, system sensing. Runs locally, stdio, MIT.">
+  <meta name="theme-color" content="#fbfbfa">
+  <title>macOS MCP Server — BuildItWithAI Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23315cf5'/%3E%3Ctext x='16' y='23' font-size='18' text-anchor='middle' fill='%23fff' font-family='Inter,sans-serif'%3E%E2%8C%A5%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #111318;
+      --muted: #747982;
+      --soft: #f6f6f3;
+      --paper: #fbfbfa;
+      --line: #e5e6e4;
+      --accent: #315cf5;
+      --mint: #4da886;
+      --coral: #e87863;
+      --amber: #d49a39;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased; line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    h1, h2, h3, p { margin: 0; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+    /* ── top bar ─────────────────────────────── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 18px; padding: 20px clamp(20px, 5vw, 56px);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: -.035em; }
+    .brand small { margin-left: 4px; color: #969aa0; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+    .brand-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 20px; font-weight: 300; line-height: 1; transition: transform .3s ease, background .3s ease; }
+    .brand:hover .brand-mark { transform: rotate(90deg); background: var(--coral); }
+    .brand:hover { text-decoration: none; }
+    .top-links { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .top-links a { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .top-links a:hover { color: var(--ink); }
+
+    /* ── layout ──────────────────────────────── */
+    .page { max-width: 1100px; margin: 0 auto; padding: clamp(36px, 5vw, 64px) clamp(20px, 5vw, 56px) 20px; }
+
+    /* ── hero ────────────────────────────────── */
+    .kicker { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+    h1.hero { margin-top: 18px; font-size: clamp(44px, 7vw, 84px); font-weight: 700; letter-spacing: -.085em; line-height: .94; max-width: 15em; }
+    h1.hero em { color: var(--accent); font-style: normal; }
+    .lede { max-width: 560px; margin-top: 24px; color: var(--muted); font-size: clamp(16px, 1.6vw, 19px); line-height: 1.55; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+    .badge { padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: #6c7178; font: 11px "JetBrains Mono", monospace; }
+    .badge b { color: var(--ink); font-weight: 600; }
+    .badge--live { border-color: #d0ecdf; background: #eaf7f1; color: #278052; }
+
+    /* ── terminal card ───────────────────────── */
+    .terminal { margin-top: 40px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 14px 40px rgba(17,19,24,.07); }
+    .terminal-bar { display: flex; align-items: center; gap: 6px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+    .terminal-bar i { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-bar i:nth-child(1) { background: #f6b6a8; } .terminal-bar i:nth-child(2) { background: #f3d9a4; } .terminal-bar i:nth-child(3) { background: #b9e3cd; }
+    .terminal-bar span { margin-left: 8px; color: #9b9ea3; font: 11px "JetBrains Mono", monospace; }
+    .terminal pre { margin: 0; padding: 18px 20px; background: var(--soft); color: #4a4f57; font-size: 12.5px; line-height: 1.75; overflow-x: auto; }
+    .terminal .t-cmd { color: var(--ink); font-weight: 600; }
+    .terminal .t-ok { color: var(--mint); font-weight: 600; }
+    .terminal .t-dim { color: #9b9ea3; }
+
+    /* ── sections ────────────────────────────── */
+    section { margin-top: clamp(52px, 6vw, 76px); }
+    .sec-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+    .sec-head h2 { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .sec-head span { color: #a0a3a8; font: 11px "JetBrains Mono", monospace; }
+
+    /* ── capability cards ────────────────────── */
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .card { padding: 18px 18px 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.55); transition: background .25s ease, border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+    .card:hover { border-color: #cdd5fa; background: #fff; box-shadow: 0 12px 32px rgba(17,19,24,.06); transform: translateY(-3px); }
+    .card-head { display: flex; align-items: center; gap: 10px; }
+    .c-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; }
+    .c-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+    .c-icon--blue { color: var(--accent); background: #eef1ff; border: 1px solid #dbe2ff; }
+    .c-icon--coral { color: var(--coral); background: #fff0ec; border: 1px solid #f6d6ce; }
+    .c-icon--mint { color: var(--mint); background: #eaf7f1; border: 1px solid #d0ecdf; }
+    .c-icon--amber { color: #a66718; background: #fff2dc; border: 1px solid #f3e0b8; }
+    .card h3 { font-size: 14px; font-weight: 700; letter-spacing: -.02em; }
+    .card .count { margin-left: auto; color: #a0a3a8; font: 10px "JetBrains Mono", monospace; }
+    .card p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+    .chip { padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: #5a5f67; font: 10px "JetBrains Mono", monospace; }
+
+    /* ── install ─────────────────────────────── */
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .step { padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .step b { display: block; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+    .step h3 { margin-top: 10px; font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+    .step p { margin-top: 8px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+    .step code { font-size: 11.5px; background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+    pre.block { margin: 0; padding: 14px 16px; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); color: #3f444c; font-size: 12px; line-height: 1.7; overflow-x: auto; }
+    .step pre { margin-top: 12px; }
+    .json-key { color: var(--accent); } .json-str { color: var(--mint); }
+
+    /* ── examples ────────────────────────────── */
+    .quotes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .quote { padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.55); }
+    .quote p { color: #51565d; font-size: 13px; line-height: 1.6; font-style: italic; }
+    .quote .arrow { display: block; margin: 10px 0 6px; color: var(--mint); font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600; }
+    .quote .out { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+    /* ── links ───────────────────────────────── */
+    .links { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .link-btn { display: block; padding: 13px 16px; border-radius: 8px; font-size: 12px; font-weight: 650; text-align: center; transition: transform .2s ease, background .2s ease; }
+    .link-btn:hover { transform: translateY(-2px); text-decoration: none; }
+    .link-btn--primary { background: var(--ink); color: #fff; }
+    .link-btn--ghost { border: 1px solid var(--line); color: var(--ink); background: #fff; }
+    .link-btn--ghost:hover { background: var(--soft); }
+
+    /* ── footer ──────────────────────────────── */
+    footer { margin-top: clamp(56px, 6vw, 80px); padding: 22px clamp(20px, 5vw, 56px) 30px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; color: #a0a3a8; font-size: 11px; }
+    footer a { color: var(--muted); font-weight: 600; }
+    footer .mono { font-family: "JetBrains Mono", monospace; font-size: 10px; }
+
+    @media (max-width: 900px) {
+      .grid, .steps, .quotes, .links { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="badges">
-                <span class="badge badge-version">v1.0.0</span>
-                <span class="badge badge-license">MIT License</span>
-                <span class="badge badge-npm">npm package</span>
-            </div>
-            <h1>macOS MCP Server</h1>
-            <p>An AI-powered productivity assistant that puts your Mac to work - controlling email, calendar, reminders, notes, messages, and system functions through natural language.</p>
-        </div>
-    </header>
 
-    <section class="stats">
-        <div class="container">
-            <div class="stat-card">
-                <span class="stat-number">29</span>
-                <span class="stat-label">Productivity Tools</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">6</span>
-                <span class="stat-label">Core Categories</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">100%</span>
-                <span class="stat-label">Open Source</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">MIT</span>
-                <span class="stat-label">Licensed</span>
-            </div>
-        </div>
+  <header class="topbar">
+    <a class="brand" href="https://builditwithai.xyz" aria-label="Back to BuildItWithAI Studio">
+      <span class="brand-mark">+</span><span>BuildItWithAI <small>Studio</small></span>
+    </a>
+    <nav class="top-links" aria-label="Project links">
+      <a href="https://github.com/surendranb/macos-mcp">GitHub</a>
+      <a href="https://www.npmjs.com/package/@surendranb/macos-companion-mcp">npm</a>
+      <a href="https://github.com/surendranb/macos-mcp#readme">Docs</a>
+    </nav>
+  </header>
+
+  <main class="page">
+
+    <section aria-label="Intro">
+      <p class="kicker"><span class="dot"></span> Project home · macOS MCP Server</p>
+      <h1 class="hero">Give your agent <em>hands</em> on your Mac.</h1>
+      <p class="lede">A local Model Context Protocol server with 40 tools for calendar, mail, notes, reminders, music, podcasts, camera, and system sensing. No cloud, no API keys — it runs on your machine and talks to Apple apps the way you do.</p>
+      <div class="badges">
+        <span class="badge"><b>v1.2.0</b></span>
+        <span class="badge"><b>40</b> tools</span>
+        <span class="badge"><b>stdio</b> · local</span>
+        <span class="badge"><b>MIT</b></span>
+        <span class="badge badge--live">● npm live</span>
+      </div>
+
+      <div class="terminal" aria-hidden="true">
+        <div class="terminal-bar"><i></i><i></i><i></i><span>npx @surendranb/macos-companion-mcp</span></div>
+        <pre><span class="t-cmd">$ npx -y @surendranb/macos-companion-mcp</span>
+macOS MCP Server running on stdio
+<span class="t-dim">40 tools registered · version 1.2.0 · client: claude_code</span>
+<span class="t-ok">✓ get_calendar_events   ✓ create_reminder     ✓ send_imessage</span>
+<span class="t-ok">✓ get_unread_emails     ✓ get_podcast_transcript ✓ run_health_audit</span>
+<span class="t-dim">waiting for tool calls…</span></pre>
+      </div>
     </section>
 
-    <section class="features">
-        <div class="container">
-            <div class="feature-card">
-                <div class="feature-icon">📧</div>
-                <h3>Email & Messaging</h3>
-                <p>Send, read, and manage emails via Apple Mail. Send iMessages and SMS through Messages app. Search unread messages and organize your communication workflow.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">📅</div>
-                <h3>Calendar & Reminders</h3>
-                <p>View, create, and manage calendar events and reminders. Get your daily agenda, set time-based alerts, and never miss an important meeting or deadline.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">📝</div>
-                <h3>Notes & Knowledge</h3>
-                <p>Create, read, and search Apple Notes. Build your personal knowledge base, capture meeting notes, and organize information seamlessly.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">💬</div>
-                <h3>Communication</h3>
-                <p>Send messages through Slack, iMessage, and other platforms. Stay connected with teammates and family without breaking your workflow.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">🎵</div>
-                <h3>Media & Entertainment</h3>
-                <p>Control Apple Music playback, check what's playing, skip tracks, adjust volume, and manage playlists - all through voice or text commands.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">⚙️</div>
-                <h3>System & Utilities</h3>
-                <p>Monitor battery health, disk usage, system performance. Run cleanup tasks, manage processes, and keep your Mac running smoothly.</p>
-            </div>
+    <section aria-label="Capabilities">
+      <div class="sec-head"><h2>What the server can do</h2><span>40 tools · 8 domains</span></div>
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--blue">
+            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+          </span><h3>Calendar &amp; Reminders</h3><span class="count">6</span></div>
+          <p>Read and create events, list reminders, mark them done. Your agent checks for conflicts before it schedules.</p>
+          <div class="chips"><span class="chip">list_calendars</span><span class="chip">get_calendar_events</span><span class="chip">create_calendar_event</span><span class="chip">get_reminders</span><span class="chip">create_reminder</span><span class="chip">complete_reminder</span></div>
         </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--coral">
+            <svg viewBox="0 0 24 24"><path d="M12 3l7 4v5c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V7z"/></svg>
+          </span><h3>Mail &amp; Messages</h3><span class="count">3</span></div>
+          <p>Summarize unread email, send mail through Mail.app, and text anyone via iMessage — from your own accounts.</p>
+          <div class="chips"><span class="chip">get_unread_emails</span><span class="chip">send_email</span><span class="chip">send_imessage</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--amber">
+            <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/></svg>
+          </span><h3>Notes</h3><span class="count">4</span></div>
+          <p>Create, read, and append to Apple Notes. Meeting notes, capture queues, and a knowledge base your agent maintains.</p>
+          <div class="chips"><span class="chip">list_notes</span><span class="chip">get_note</span><span class="chip">create_note</span><span class="chip">update_note</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--mint">
+            <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </span><h3>Music</h3><span class="count">5</span></div>
+          <p>Control Apple Music: what's playing, play/pause, skip, volume, and start playlists by name.</p>
+          <div class="chips"><span class="chip">get_music_state</span><span class="chip">play_playlist</span><span class="chip">play_pause_music</span><span class="chip">skip_music_track</span><span class="chip">set_music_volume</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--blue">
+            <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 019 9c0 2.8-1.3 4.9-3 6.3L16 20H8l-2-1.7C4.3 16.9 3 14.8 3 12a9 9 0 019-9z"/><path d="M12 8v4l3 2"/></svg>
+          </span><h3>Podcasts</h3><span class="count">5</span></div>
+          <p>Search episodes by date range, open one in the app, play it, and pull the full transcript to disk.</p>
+          <div class="chips"><span class="chip">get_recent_podcast_episodes</span><span class="chip">open_podcast_episode</span><span class="chip">play_podcast_episode</span><span class="chip">get_podcast_transcript</span><span class="chip">pause_podcast_episode</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--coral">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </span><h3>System &amp; Health</h3><span class="count">10</span></div>
+          <p>Battery cycle count, disk and storage scans, process lists, startup items, health audit, cleanup, kill and restart services.</p>
+          <div class="chips"><span class="chip">get_system_stats</span><span class="chip">get_process_list</span><span class="chip">kill_process</span><span class="chip">restart_service</span><span class="chip">get_battery_health</span><span class="chip">get_disk_usage</span><span class="chip">get_storage_scan</span><span class="chip">get_startup_items</span><span class="chip">run_health_audit</span><span class="chip">run_disk_cleanup</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--amber">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+          </span><h3>Sensing</h3><span class="count">3</span></div>
+          <p>Camera snapshots, ambient noise level, and audio capture — ambient sensing your agent can actually act on.</p>
+          <div class="chips"><span class="chip">capture_camera_snapshot</span><span class="chip">get_ambient_noise</span><span class="chip">capture_audio</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="c-icon c-icon--mint">
+            <svg viewBox="0 0 24 24"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg>
+          </span><h3>Utilities</h3><span class="count">4</span></div>
+          <p>Open URLs, list Safari tabs, and run any Siri Shortcut by name — the escape hatch for everything else.</p>
+          <div class="chips"><span class="chip">open_url</span><span class="chip">get_safari_tabs</span><span class="chip">list_shortcuts</span><span class="chip">run_shortcut</span></div>
+        </div>
+
+      </div>
     </section>
 
-    <section class="cta-section">
-        <div class="container">
-            <h2>Get Started in Minutes</h2>
-            <p>Transform your AI assistant into a powerful productivity partner that can actually get things done on your Mac.</p>
-            <a href="https://github.com/surendranb/macos-mcp" class="cta-button">View on GitHub</a>
-            <a href="https://github.com/surendranb/macos-mcp#readme" class="cta-button" style="margin-left: 1rem; background: transparent; color: #64748b; border: 2px solid #64748b;">Documentation</a>
+    <section aria-label="Get started">
+      <div class="sec-head"><h2>Get started</h2><span>~60 seconds</span></div>
+      <div class="steps">
+        <div class="step">
+          <b>1 · Install</b>
+          <h3>One command</h3>
+          <p>Works with Claude Desktop, Claude Code, Cursor, Gemini CLI, OpenCode, any MCP client.</p>
+          <pre class="block"><span class="t-cmd">npm install -g @surendranb/macos-companion-mcp</span></pre>
         </div>
+        <div class="step">
+          <b>2 · Configure</b>
+          <h3>Point your client at it</h3>
+          <p>Or use <code>npx -y</code> and skip the install entirely.</p>
+          <pre class="block">{
+  <span class="json-key">"mcpServers"</span>: {
+    <span class="json-key">"macos"</span>: {
+      <span class="json-key">"command"</span>: <span class="json-str">"npx"</span>,
+      <span class="json-key">"args"</span>: [<span class="json-str">"-y"</span>, <span class="json-str">"@surendranb/macos-companion-mcp"</span>]
+    }
+  }
+}</pre>
+        </div>
+        <div class="step">
+          <b>3 · Grant access</b>
+          <h3>One-time permissions</h3>
+          <p>Launch Mail, Calendar, Notes, and Reminders once so Apple's permissions are in place. Allow camera/microphone in System Settings if you use sensing tools.</p>
+        </div>
+      </div>
     </section>
 
-    <section class="tech-stack">
-        <div class="container">
-            <h2>Built With</h2>
-            <div>
-                <span class="tech-badge">Model Context Protocol</span>
-                <span class="tech-badge">TypeScript</span>
-                <span class="tech-badge">Node.js</span>
-                <span class="tech-badge">AppleScript</span>
-                <span class="tech-badge">macOS Automation</span>
-                <span class="tech-badge">Open Source</span>
-            </div>
+    <section aria-label="What you can ask">
+      <div class="sec-head"><h2>What you can ask</h2><span>it just works</span></div>
+      <div class="quotes">
+        <div class="quote">
+          <p>"Check my calendar for a free 30 minutes tomorrow afternoon and book a dentist visit."</p>
+          <span class="arrow">→</span>
+          <span class="out">Finds a gap, creates the event, reminder set. You confirm.</span>
         </div>
+        <div class="quote">
+          <p>"Summarize my unread email, then reply to anything urgent."</p>
+          <span class="arrow">→</span>
+          <span class="out">Reads Mail.app, drafts a digest, sends replies from your account.</span>
+        </div>
+        <div class="quote">
+          <p>"What did I listen to this week? Pull the transcript of that one episode."</p>
+          <span class="arrow">→</span>
+          <span class="out">Searches episodes, plays it, fetches the full transcript locally.</span>
+        </div>
+      </div>
     </section>
 
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2026 Surendran Balachandran. Built with ❤️ for the AI-powered future.</p>
-            <p>
-                <a href="https://github.com/surendranb/macos-mcp">GitHub Repository</a> |
-                <a href="https://github.com/surendranb/macos-mcp/issues">Report Issues</a> |
-                <a href="https://github.com/surendranb/macos-mcp/blob/main/LICENSE">License</a>
-            </p>
-        </div>
-    </footer>
+    <section aria-label="Links">
+      <div class="sec-head"><h2>Go deeper</h2><span>source · package · docs</span></div>
+      <div class="links">
+        <a class="link-btn link-btn--primary" href="https://github.com/surendranb/macos-mcp">GitHub</a>
+        <a class="link-btn link-btn--ghost" href="https://www.npmjs.com/package/@surendranb/macos-companion-mcp">npm package</a>
+        <a class="link-btn link-btn--ghost" href="https://github.com/surendranb/macos-mcp#readme">Documentation</a>
+        <a class="link-btn link-btn--ghost" href="https://builditwithai.xyz">BuildItWithAI Studio</a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>Built by <a href="https://github.com/surendranb">Surendran B</a> at <a href="https://builditwithai.xyz">BuildItWithAI Studio</a></span>
+    <span class="mono">macos-mcp.builditwithai.xyz · MIT · 2026</span>
+  </footer>
+
 </body>
 </html>

@@ -33,3 +33,26 @@ First public release. 37 tools, opinionated for agents.
 - Noise detection requires `sox` (`rec`)
 - Calendar.app warmup adds ~5s to first tool call
 - iMessage AppleScript can be slow (~1s per send)
+
+## 1.2.0 (2026-08-03)
+
+Podcast transcript pipeline + public launch polish.
+
+### What's new
+
+- **Podcast transcripts, verified end-to-end**: `open_podcast_episode` (UI search + open),
+  `play_podcast_episode` (AX-discovered play pill, polls TTML cache), `pause_podcast_episode`
+  — full transcript fetch pipeline proven live (SUR-214)
+- `get_recent_podcast_episodes` gains `fromDate` / `toDate` / `query` filters (date math uses
+  `unixepoch()` — `strftime` returns TEXT and breaks SQLite comparisons)
+- 40 tools total (was 37)
+- Smoke suite (19 checks) added in `test/smoke.mjs`
+
+### Distribution
+
+- Published to npm: `@surendranb/macos-companion-mcp@1.2.0`
+- Server manifest (`server.json`) regenerated to match the 40 tools
+
+## 1.1.0 (2026-08-01)
+
+MCP 2.0 spec upgrade; refactor from single file to modular layout; internal hardening.

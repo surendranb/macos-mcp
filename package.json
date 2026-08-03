@@ -1,7 +1,7 @@
 {
   "name": "@surendranb/macos-companion-mcp",
   "version": "1.2.0",
-  "description": "macOS MCP server — 37 tools for AI agents (calendar, mail, notes, music, camera, system sensing)",
+  "description": "macOS MCP server \u2014 40 tools for AI agents (calendar, mail, notes, music, podcasts, camera, system sensing)",
   "main": "dist/index.js",
   "bin": {
     "macos-mcp": "dist/index.js"
@@ -10,7 +10,8 @@
     "build": "tsc",
     "prepublishOnly": "npm run build",
     "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node test/smoke.mjs"
   },
   "keywords": [
     "mcp",
