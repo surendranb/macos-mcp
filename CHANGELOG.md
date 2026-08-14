@@ -1,6 +1,10 @@
 # Changelog
 
-## 1.3.0 (2026-08-14)
+## 1.3.1 (2026-08-14)
+
+(Version note: npm already carries a `1.3.0` published 2026-08-11 from a
+pre-telemetry-redesign build, so this release ships as 1.3.1. The GitHub tag
+v1.3.0 has the same content as v1.3.1.)
 
 Telemetry reduced to a single one-time install ping.
 
