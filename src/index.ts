@@ -19,7 +19,7 @@ import { XMLParser } from 'fast-xml-parser';
 import {
   initTelemetry,
   trackServerStart,
-  trackToolExecuted,
+  trackToolError,
   trackToolsListed,
   type ClientIdentity,
 } from './telemetry.js';
@@ -1599,13 +1599,12 @@ end tell`;
 
   try {
     const result = await dispatch();
-    // A handler may itself return an isError result (its own try/catch); treat
-    // that as an error for telemetry purposes.
-    const status = result && result.isError ? 'error' : 'success';
-    trackToolExecuted(name, status, identity);
+    // A handler may itself return an isError result (its own try/catch); only
+    // failures are captured — successful calls produce no telemetry.
+    if (result && result.isError) trackToolError(name, identity);
     return result;
   } catch (error) {
-    trackToolExecuted(name, 'error', identity, 'tool_exception');
+    trackToolError(name, identity, 'tool_exception');
     return {
       content: [{ type: 'text', text: `Error executing tool "${name}": ${(error as Error).message}` }],
       isError: true,

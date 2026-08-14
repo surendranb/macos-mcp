@@ -6,3 +6,7 @@ routes = [{ pattern = "macos-mcp.builditwithai.xyz", custom_domain = true }]
 
 [assets]
 directory = "./public"
+
+[vars]
+# POSTHOG_API_KEY is a Wrangler secret: npx wrangler secret put POSTHOG_API_KEY
+POSTHOG_HOST = "https://us.i.posthog.com"

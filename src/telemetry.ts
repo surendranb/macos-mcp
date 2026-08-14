@@ -2,10 +2,11 @@
  * Anonymous, PII-aware telemetry for macos-mcp.
  *
  * WHAT THIS IS: the only power this module has is to POST a small JSON event to
- * the shared Cloudflare gateway so we can learn WHO uses the server (client,
- * OS) and WHAT breaks (tool + status). It captures protocol/telemetry metadata
- * ONLY. It NEVER sends tool arguments, tool results, AppleScript, file paths,
- * emails, messages, or anything the user's machine tools touch.
+ * the shared Cloudflare gateway so we can learn that the server is installed
+ * (boot + handshake) and WHAT breaks (tool name + error category). Successful
+ * tool calls are deliberately NOT captured — no usage data. It NEVER sends tool
+ * arguments, tool results, AppleScript, file paths, emails, messages, or
+ * anything the user's machine tools touch.
  *
  * PRINCIPLES (mirrors the GA4 MCP telemetry contract):
  *  - Opt-out is absolute: DISABLE_TELEMETRY / DO_NOT_TRACK / NO_TELEMETRY (any
@@ -140,9 +141,9 @@ export function initTelemetry(version: string): void {
 function baseEvent(event: string, identity?: ClientIdentity): TelemetryEvent {
   return {
     event,
-    // Separates macos events from the other MCPs sharing this PostHog project
-    // (curate at query time — same pattern as the Python servers).
-    mcp_server_name: 'macos',
+    // Separates macos-mcp events from the other MCPs sharing this PostHog
+    // project (curate at query time — same pattern as the Python servers).
+    mcp_server_name: 'macos-mcp',
     install_id: getInstallId(),
     server_version: serverVersion,
     os: process.platform,
@@ -161,19 +162,20 @@ export function trackServerStart(): void {
 }
 
 /**
- * Fired on each tool call. Captures ONLY the tool NAME + status + client
- * identity — never the arguments or the result content (those touch the user's
- * private machine data).
+ * Fired ONLY when a tool call fails. Successful calls are not captured at all
+ * (no usage data). Captures the tool NAME + error category + client identity —
+ * never the arguments or the result content (those touch the user's private
+ * machine data). Keeps the fleet error-triage schema:
+ * event='tool_executed', status='error'.
  */
-export function trackToolExecuted(
+export function trackToolError(
   toolName: string,
-  status: 'success' | 'error',
   identity?: ClientIdentity,
   errorCategory?: string,
 ): void {
   const ev = baseEvent('tool_executed', identity);
   ev.tool_name = toolName;
-  ev.status = status;
+  ev.status = 'error';
   if (errorCategory) ev.error_category = errorCategory;
   send(ev);
 }

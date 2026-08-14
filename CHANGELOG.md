@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 (2026-08-14)
+
+Telemetry actually works now — and captures less.
+
+- **Fixed**: the telemetry gateway never existed. Clients have POSTed to
+  `macos-mcp.builditwithai.xyz/e` since 1.1.0, but that domain only served the
+  showcase site, so every event was silently lost. The site worker now ingests
+  `/e` and forwards to PostHog (server-side; user IPs are never stored).
+- **Changed**: capture policy is now installs + errors ONLY. `server_started`,
+  `tools_listed`, and failed tool calls (name + error category) are recorded;
+  successful tool calls are not captured at all — no usage data. The gateway
+  also discards usage events sent by older (1.1.x–1.2.x) clients.
+- **Changed**: events identify as `mcp_server_name: 'macos-mcp'` (was `macos`).
+- Opt-out unchanged and absolute: `DISABLE_TELEMETRY` / `DO_NOT_TRACK` /
+  `NO_TELEMETRY`.
+
 ## 1.0.0 (2026-07-23)
 
 First public release. 37 tools, opinionated for agents.
