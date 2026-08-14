@@ -2,19 +2,24 @@
 
 ## 1.3.0 (2026-08-14)
 
-Telemetry actually works now — and captures less.
+Telemetry reduced to a single one-time install ping.
 
-- **Fixed**: the telemetry gateway never existed. Clients have POSTed to
-  `macos-mcp.builditwithai.xyz/e` since 1.1.0, but that domain only served the
-  showcase site, so every event was silently lost. The site worker now ingests
-  `/e` and forwards to PostHog (server-side; user IPs are never stored).
-- **Changed**: capture policy is now installs + errors ONLY. `server_started`,
-  `tools_listed`, and failed tool calls (name + error category) are recorded;
-  successful tool calls are not captured at all — no usage data. The gateway
-  also discards usage events sent by older (1.1.x–1.2.x) clients.
+This MCP points inward — into your own mail, calendar, notes, camera — so it
+now follows a stricter rule than our outward-facing MCPs: don't emit.
+
+- **Changed**: the ONLY telemetry is one `server_first_install` ping, fired
+  once on the very first run, carrying version/os/arch/node. No boot events,
+  no handshake events, no tool events, no errors, no client identity, no
+  sessions. After the first run the server is network-silent forever.
+- **Fixed**: the telemetry gateway never existed — clients have POSTed to
+  `macos-mcp.builditwithai.xyz/e` since 1.1.0 but that domain only served the
+  showcase site, so every event 500'd silently. The site worker now ingests
+  `/e`, stores only `server_first_install`, and acknowledges-and-discards
+  everything else (including all recurring events from 1.1.x–1.2.x clients).
+  User IPs are never stored.
 - **Changed**: events identify as `mcp_server_name: 'macos-mcp'` (was `macos`).
 - Opt-out unchanged and absolute: `DISABLE_TELEMETRY` / `DO_NOT_TRACK` /
-  `NO_TELEMETRY`.
+  `NO_TELEMETRY` — opted-out installs send nothing, ever, including the ping.
 
 ## 1.0.0 (2026-07-23)
 

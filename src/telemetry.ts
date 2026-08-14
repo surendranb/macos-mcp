@@ -1,22 +1,22 @@
 /**
- * Anonymous, PII-aware telemetry for macos-mcp.
+ * One-time install ping for macos-mcp. That is the entire telemetry surface.
  *
- * WHAT THIS IS: the only power this module has is to POST a small JSON event to
- * the shared Cloudflare gateway so we can learn that the server is installed
- * (boot + handshake) and WHAT breaks (tool name + error category). Successful
- * tool calls are deliberately NOT captured — no usage data. It NEVER sends tool
- * arguments, tool results, AppleScript, file paths, emails, messages, or
- * anything the user's machine tools touch.
+ * WHY SO LITTLE: this MCP points INWARD — the user reaches through it into
+ * their own mail, calendar, notes, camera. For an inward-facing tool even
+ * "safe" metadata (boot times, tool names, error rhythms) is information
+ * about a person's life, so the rule here is don't-emit, not
+ * capture-and-curate. The outward-facing MCPs in this fleet (GA4, GSC, ...)
+ * carry richer telemetry; this one deliberately does not.
  *
- * PRINCIPLES (mirrors the GA4 MCP telemetry contract):
- *  - Opt-out is absolute: DISABLE_TELEMETRY / DO_NOT_TRACK / NO_TELEMETRY (any
- *    truthy value disables). GA_MCP_TELEMETRY=false also disables.
- *  - No IPs are ever stored (the gateway strips them; we never send them).
- *  - Random, resettable install id (delete ~/.macos_mcp/install_id to reset).
- *    No fingerprinting, ever.
- *  - Capture-first: the client sends raw metadata; the worker scrubs/curates
- *    later. Nothing PII-bearing is captured here in the first place.
- *  - Fire-and-forget: telemetry never blocks or breaks a tool call.
+ * WHAT IS SENT: exactly one event, ever — `server_first_install`, fired the
+ * first time the server runs (when the install id is created), carrying
+ * version/os/arch/node only. No boot events, no tool events, no errors, no
+ * client identity, no sessions. If the ping fails, it is never retried and
+ * the install goes uncounted — silence is preferred over retry logic.
+ *
+ * OPT-OUT (absolute, checked before anything): DISABLE_TELEMETRY /
+ * DO_NOT_TRACK / NO_TELEMETRY. Opted-out installs never create network
+ * traffic and are never counted.
  */
 
 import { randomUUID } from 'crypto';
@@ -24,9 +24,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Endpoint is overridable via env only for local verification / self-hosting;
-// it defaults to the shared gateway. This is not a telemetry marker persisted
-// on the user's machine — it's read from the environment at runtime.
+// Overridable via env only for local verification / self-hosting.
 const TELEMETRY_ENDPOINT =
   process.env.MACOS_MCP_TELEMETRY_ENDPOINT || 'https://macos-mcp.builditwithai.xyz/e';
 const CONFIG_DIR = path.join(os.homedir(), '.macos_mcp');
@@ -34,153 +32,56 @@ const INSTALL_ID_FILE = path.join(CONFIG_DIR, 'install_id');
 
 /** Any of these set to a truthy, non-"false"/"0" value disables telemetry. */
 function isOptedOut(): boolean {
-  const disableVars = [
-    'DISABLE_TELEMETRY',
-    'DO_NOT_TRACK',
-    'NO_TELEMETRY',
-  ];
-  for (const name of disableVars) {
+  for (const name of ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'NO_TELEMETRY']) {
     const v = process.env[name];
     if (v !== undefined && v !== '' && v !== '0' && v.toLowerCase() !== 'false') {
       return true;
     }
   }
-  // Explicit false-style opt-out for the product-specific flag.
-  const flag = process.env.GA_MCP_TELEMETRY;
-  if (flag !== undefined && flag.toLowerCase() === 'false') {
-    return true;
-  }
   return false;
 }
 
-const OPTED_OUT = isOptedOut();
-
 /**
- * A random, resettable install id. Stored under ~/.macos_mcp/install_id.
- * If the file can't be read/written (read-only home, sandbox), we fall back to
- * an ephemeral in-memory id so telemetry still groups within one process run.
+ * Fired once at boot. Sends the one-time ping ONLY if this is the first run
+ * ever (no install id on disk). The persisted id file doubles as the
+ * "already pinged" marker, so the ping can never repeat. Installs where the
+ * id cannot be persisted (read-only HOME, sandboxes) send nothing — better
+ * to undercount than to ping on every boot.
  */
-let cachedInstallId: string | null = null;
-function getInstallId(): string {
-  if (cachedInstallId) return cachedInstallId;
+export function trackFirstInstall(version: string): void {
+  if (isOptedOut()) return;
   try {
-    if (fs.existsSync(INSTALL_ID_FILE)) {
-      const existing = fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim();
-      if (existing) {
-        cachedInstallId = existing;
-        return existing;
-      }
+    if (fs.existsSync(INSTALL_ID_FILE) && fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim()) {
+      return; // not the first run — telemetry stays silent forever
     }
-    const fresh = `inst_${randomUUID().replace(/-/g, '')}`;
+    const installId = `inst_${randomUUID().replace(/-/g, '')}`;
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(INSTALL_ID_FILE, fresh, { mode: 0o600 });
-    cachedInstallId = fresh;
-    return fresh;
-  } catch {
-    // Ephemeral fallback — never let install-id IO break the server.
-    if (!cachedInstallId) cachedInstallId = `inst_ephemeral_${randomUUID().replace(/-/g, '')}`;
-    return cachedInstallId;
-  }
-}
+    fs.writeFileSync(INSTALL_ID_FILE, installId, { mode: 0o600 });
 
-/** Per-request client identity, resolved dual-era from the SDK. */
-export interface ClientIdentity {
-  clientName?: string;
-  clientVersion?: string;
-  protocolVersion?: string;
-}
-
-interface TelemetryEvent {
-  event: string;
-  mcp_server_name: string;
-  install_id: string;
-  server_version: string;
-  os: string;
-  arch: string;
-  node_version: string;
-  mcp_client_name?: string;
-  mcp_client_version?: string;
-  mcp_protocol_version?: string;
-  tool_name?: string;
-  status?: string;
-  error_category?: string;
-  ts: string;
-}
-
-/**
- * Fire-and-forget POST to the gateway. Never throws, never awaited by callers,
- * short timeout so a dead network can't leak a hanging socket.
- */
-function send(event: TelemetryEvent): void {
-  if (OPTED_OUT) return;
-  try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    // Product UA — the gateway 403s default library/runtime UAs.
+    // Product UA — the gateway ignores default library/runtime UAs.
     void fetch(TELEMETRY_ENDPOINT, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'user-agent': `macos-mcp/${event.server_version}`,
+        'user-agent': `macos-mcp/${version}`,
       },
-      body: JSON.stringify(event),
+      body: JSON.stringify({
+        event: 'server_first_install',
+        mcp_server_name: 'macos-mcp',
+        install_id: installId,
+        server_version: version,
+        os: process.platform,
+        arch: process.arch,
+        node_version: process.versions.node,
+        ts: new Date().toISOString(),
+      }),
       signal: controller.signal,
     })
-      .catch(() => { /* swallow — telemetry is best-effort */ })
+      .catch(() => { /* best-effort; never retried */ })
       .finally(() => clearTimeout(timer));
   } catch {
-    /* fetch unavailable / any sync throw — ignore */
+    /* never let telemetry break the server */
   }
-}
-
-let serverVersion = '0.0.0';
-export function initTelemetry(version: string): void {
-  serverVersion = version || '0.0.0';
-}
-
-function baseEvent(event: string, identity?: ClientIdentity): TelemetryEvent {
-  return {
-    event,
-    // Separates macos-mcp events from the other MCPs sharing this PostHog
-    // project (curate at query time — same pattern as the Python servers).
-    mcp_server_name: 'macos-mcp',
-    install_id: getInstallId(),
-    server_version: serverVersion,
-    os: process.platform,
-    arch: process.arch,
-    node_version: process.versions.node,
-    mcp_client_name: identity?.clientName,
-    mcp_client_version: identity?.clientVersion,
-    mcp_protocol_version: identity?.protocolVersion,
-    ts: new Date().toISOString(),
-  };
-}
-
-/** Fired once when the server process boots. */
-export function trackServerStart(): void {
-  send(baseEvent('server_started'));
-}
-
-/**
- * Fired ONLY when a tool call fails. Successful calls are not captured at all
- * (no usage data). Captures the tool NAME + error category + client identity —
- * never the arguments or the result content (those touch the user's private
- * machine data). Keeps the fleet error-triage schema:
- * event='tool_executed', status='error'.
- */
-export function trackToolError(
-  toolName: string,
-  identity?: ClientIdentity,
-  errorCategory?: string,
-): void {
-  const ev = baseEvent('tool_executed', identity);
-  ev.tool_name = toolName;
-  ev.status = 'error';
-  if (errorCategory) ev.error_category = errorCategory;
-  send(ev);
-}
-
-/** Fired once per connection when a client first lists tools (real handshake). */
-export function trackToolsListed(identity?: ClientIdentity): void {
-  send(baseEvent('tools_listed', identity));
 }

@@ -16,13 +16,7 @@ import * as os from 'os';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { XMLParser } from 'fast-xml-parser';
-import {
-  initTelemetry,
-  trackServerStart,
-  trackToolError,
-  trackToolsListed,
-  type ClientIdentity,
-} from './telemetry.js';
+import { trackFirstInstall } from './telemetry.js';
 
 // exec with a sane maxBuffer — the 1MB default kills any tool that returns a
 // big payload (process lists, storage scans, podcast transcripts via cat).
@@ -47,41 +41,6 @@ function resolveServerVersion(): string {
 const SERVER_VERSION = resolveServerVersion();
 
 // Reserved `_meta` envelope key carrying clientInfo on the 2026-07-28 era.
-const CLIENT_INFO_META_KEY = 'io.modelcontextprotocol/clientInfo';
-
-/**
- * Dual-era client identity. On the 2026-07-28 era the SDK exposes the client
- * via `getClientVersion()` (name/version) and `getNegotiatedProtocolVersion()`;
- * this holds for legacy-handshake clients too, since the SDK stores the
- * initialize-declared clientInfo the same way. As a defensive fallback we also
- * read the reserved clientInfo `_meta` key off the request.
- */
-function readClientIdentity(request?: { params?: { _meta?: Record<string, unknown> } }): ClientIdentity {
-  const identity: ClientIdentity = {};
-  try {
-    const info = server.getClientVersion();
-    if (info) {
-      identity.clientName = info.name;
-      identity.clientVersion = info.version;
-    }
-    const proto = server.getNegotiatedProtocolVersion();
-    if (proto) identity.protocolVersion = proto;
-  } catch {
-    /* pre-handshake or unavailable */
-  }
-  // Fallback: 2026-era per-request clientInfo envelope, if the getters were empty.
-  if (!identity.clientName) {
-    const meta = request?.params?._meta;
-    const raw = meta?.[CLIENT_INFO_META_KEY];
-    if (raw && typeof raw === 'object') {
-      const ci = raw as { name?: string; version?: string };
-      if (ci.name) identity.clientName = ci.name;
-      if (ci.version) identity.clientVersion = ci.version;
-    }
-  }
-  return identity;
-}
-
 // Helper to run AppleScript by feeding it to osascript's stdin.
 // ponytail: 60s hard timeout — without it, any AppleScript hang (e.g. a
 // per-object property loop over iCloud-backed apps like Reminders/Notes)
@@ -151,9 +110,6 @@ function newestCachedTranscript(): { path: string; mtimeMs: number } | null {
 
 
 
-// Initialize telemetry (product UA = macos-mcp/<version>).
-initTelemetry(SERVER_VERSION);
-
 // Initialize MCP Server
 const server = new Server(
   {
@@ -168,7 +124,6 @@ const server = new Server(
 );
 
 // Fire once per connection when a client first lists tools (a real handshake).
-let toolsListedFired = false;
 
 // Define available tools
 const TOOLS = [
@@ -558,22 +513,15 @@ const TOOLS = [
 // v2 types the result strictly (inputSchema.type is the literal 'object');
 // our TOOLS literals widen to `string`, so we hand the SDK the list as-is via
 // a cast. The JSON on the wire is byte-identical to what v1 emitted.
-server.setRequestHandler('tools/list', async (request) => {
-  if (!toolsListedFired) {
-    toolsListedFired = true;
-    trackToolsListed(readClientIdentity(request as any));
-  }
+server.setRequestHandler('tools/list', async () => {
   return { tools: TOOLS } as any;
 });
 
 // Register call tool handler (v2: method string 'tools/call', not a schema).
 server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
-  // Client identity for telemetry — captured BEFORE the call, never the args.
-  const identity = readClientIdentity(request as any);
 
-  // Inner dispatch keeps every existing `case` return byte-for-byte; the outer
-  // wrapper records tool_executed (name + status ONLY — never args/results).
+  // Inner dispatch keeps every existing `case` return byte-for-byte.
   const dispatch = async (): Promise<any> => {
     switch (name) {
       // 📅 Calendar & Reminders
@@ -1598,13 +1546,8 @@ end tell`;
   };
 
   try {
-    const result = await dispatch();
-    // A handler may itself return an isError result (its own try/catch); only
-    // failures are captured — successful calls produce no telemetry.
-    if (result && result.isError) trackToolError(name, identity);
-    return result;
+    return await dispatch();
   } catch (error) {
-    trackToolError(name, identity, 'tool_exception');
     return {
       content: [{ type: 'text', text: `Error executing tool "${name}": ${(error as Error).message}` }],
       isError: true,
@@ -1618,8 +1561,9 @@ async function run() {
   await server.connect(transport);
   console.error('macOS Companion MCP Server running on stdio');
 
-  // Anonymous boot ping (fire-and-forget; honors opt-out inside).
-  trackServerStart();
+  // One-time install ping — fires only on the very first run ever, then the
+  // server is network-silent forever (see telemetry.ts for the philosophy).
+  trackFirstInstall(SERVER_VERSION);
 
   // ponytail: warm up slow-starting apps in background at init so first tool call isn't cold.
   // Notes, Reminders, Calendar, and Mail take 15-40s to launch headlessly; open them now, don't wait.
