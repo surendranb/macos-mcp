@@ -10,6 +10,12 @@ jobs:
   publish-to-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing (OIDC) — no NPM_TOKEN. Configured on npmjs.com:
+      # package settings -> Trusted Publisher -> GitHub Actions,
+      # repo surendranb/macos-mcp, workflow release.yml.
+      id-token: write
 
     steps:
       - name: Check out repository
@@ -18,8 +24,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm (trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -29,5 +38,3 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
