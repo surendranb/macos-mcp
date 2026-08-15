@@ -1,6 +1,6 @@
 {
   "name": "@surendranb/macos-companion-mcp",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "macOS MCP server — 40 tools for AI agents (calendar, mail, notes, music, podcasts, camera, system sensing)",
   "main": "dist/index.js",
   "bin": {
