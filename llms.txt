@@ -1,0 +1,24 @@
+# macOS Companion MCP Server
+
+> Model Context Protocol (MCP) server for native macOS system control, clipboard management, desktop notifications, audio devices, and workspace automation.
+
+## Installation
+- NPX: `npx -y @surendranb/macos-companion-mcp`
+- UVX: `uvx macos-companion-mcp`
+- Curl: `curl -fsSL https://macos.builditwithai.xyz/install | bash`
+- Documentation: https://macos.builditwithai.xyz
+
+## Primary Tools
+- `notify(title, message, sound)`: Dispatches native macOS desktop notifications.
+- `clipboard_read()`: Reads clipboard text.
+- `clipboard_write(text)`: Writes clipboard text.
+- `get_audio_devices()`: Lists audio devices and volume.
+- `set_volume(volume)`: Sets output volume (0-100).
+- `get_frontmost_app()`: Returns active focused app.
+- `get_open_windows()`: Lists window titles.
+- `get_displays()`: Lists connected monitors.
+- `open_url(url)`: Opens URL in browser.
+- `execute_applescript(script)`: Runs AppleScript safely.
+
+## Environment Variables
+- `DO_NOT_TRACK`: Set to `1` to disable anonymous telemetry.
