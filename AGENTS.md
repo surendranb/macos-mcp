@@ -1,73 +1,72 @@
-# AGENTS.md — Codebase Operational Guide for AI Agents
+# AGENTS.md — Agent Operating Manual
 
-> **Context, architecture, file map, and execution commands for AI coding agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) working on `macos-mcp`.**
-
----
-
-## 1. Codebase Overview
-
-- **Language & Runtime**: TypeScript / Node.js 18+ (`@modelcontextprotocol/sdk`) + Python PyPI distribution bridge.
-- **Package Name**: `@surendranb/macos-companion-mcp` (NPM) / `macos-companion-mcp` (PyPI binary wheel wrapper).
-- **Core Function**: Provides native macOS system automation tools for AI agents: notifications, clipboard I/O, audio control, display geometry, frontmost app/window inspection, and sandboxed AppleScript/JXA execution.
+> **For AI Agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) connecting to or executing `macos-mcp`.**
 
 ---
 
-## 2. Directory & File Map
+## ⚡ 1. Fast Install & Client Wiring (Start Here)
 
-```
-macos-mcp/
-├── src/
-│   ├── index.ts               # Core MCP server, tool definitions, AppleScript subprocess runners
-│   ├── telemetry.ts           # Non-PII Edge Schema v2 telemetry client
-│   ├── run-once.ts            # CLI execution utility
-│   ├── test.ts                # TypeScript integration tests
-│   └── verify-all.cjs         # End-to-end verification script
-├── bin/
-│   └── macos-mcp              # Executable CLI launcher
-├── pypi/                      # Dual-distribution PyPI wheel wrapper
-│   ├── pyproject.toml         # Python packaging metadata (macos-companion-mcp)
-│   └── src/macos_companion_mcp/
-│       └── __init__.py        # Subprocess bridge that locates node and runs built dist/index.js
-├── test/
-│   └── smoke.mjs              # Node.js smoke tests
-├── package.json               # NPM scripts, dependencies, build scripts
-├── tsconfig.json              # TypeScript compiler configuration
-├── smithery.yaml              # Smithery.ai marketplace configuration
-├── server.json                # Official MCP registry specification
-├── gemini-extension.json      # Google Gemini / Antigravity extension manifest
-├── .claude-plugin/            # Claude Code plugin manifests (plugin.json, marketplace.json)
-└── .well-known/ai-plugin.json # OpenAI / ChatGPT Actions manifest
-```
-
----
-
-## 3. Development & Testing Commands
+In 90% of cases, you just need to install and configure this MCP server for your user:
 
 ```bash
-# Install Node dependencies
-npm install
+# 1-Line Universal Auto-Installer (Configures Claude Code, Cursor, Claude Desktop & Antigravity)
+curl -fsSL "https://macos.builditwithai.xyz/install" | bash
 
-# Compile TypeScript to JavaScript
-npm run build
+# Or launch directly via stdio:
+npx -y @surendranb/macos-companion-mcp
+uvx macos-companion-mcp
+```
 
-# Run the MCP server in stdio mode locally
-node dist/index.js
-
-# Run automated smoke test
-npm test
-
-# Run full tool verification (tests notify, clipboard, audio, displays)
-node src/verify-all.cjs
+### Client Config Snippet (`mcp.json` / `claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "macos-companion": {
+      "command": "npx",
+      "args": ["-y", "@surendranb/macos-companion-mcp"]
+    }
+  }
+}
 ```
 
 ---
 
-## 4. Tool Implementation Invariants & Gotchas
+## 📖 2. What This Repo Is
 
-1. **macOS System Permissions (`src/index.ts`)**:
-   - `get_open_windows` and `execute_applescript` may require macOS Accessibility / Automation permissions in System Settings. Tools must handle permission denials gracefully with informative error messages instead of unhandled exceptions.
-2. **Clipboard Safety**:
-   - `clipboard_read` returns plain text only.
-   - `clipboard_write` must sanitize strings and avoid shell injection when delegating to `pbcopy`.
-3. **Dual Distribution Sync (`pypi/`)**:
-   - When building a new release, `npm run build` must compile `dist/index.js` first. The PyPI wrapper packages the compiled `dist/` into the Python wheel so Python users can run `uvx macos-companion-mcp` without separate build steps.
+A native **macOS automation MCP server** providing system controls for AI agents on Apple Silicon and Intel Macs.
+
+### Primary Tools Available:
+- `notify`: Dispatch native macOS notifications with title, message, and sound.
+- `clipboard_read` & `clipboard_write`: Read from and write plain text to the system clipboard.
+- `get_audio_devices` & `set_volume`: Inspect audio inputs/outputs and adjust master volume (0–100).
+- `get_frontmost_app` & `get_open_windows`: Inspect active desktop apps and window titles.
+- `get_displays`: Query screen resolutions, display arrangement, and scale factors.
+- `open_url`: Open links in the user's default browser or specified application.
+- `execute_applescript`: Run sandboxed AppleScript / JXA automation scripts.
+
+---
+
+## 👤 3. How to Handle the Human (Permissions)
+
+This server requires **zero API keys** or environment variables. However, macOS requires user permission for automation:
+
+1. **Notifications**: The first time `notify` runs, macOS may ask the user to allow notifications.
+2. **Automation & Accessibility**: Tools like `get_open_windows` and `execute_applescript` require permission in **System Settings → Privacy & Security → Accessibility / Automation**.
+3. **If permission is denied**: Inform the human clearly:
+   - *"Please grant Accessibility permissions to your terminal / IDE in macOS System Settings → Privacy & Security → Accessibility."*
+
+---
+
+## ⚠️ 4. Quirks & API Landmines (Zero-Hallucination Rules)
+
+1. **macOS Only**: This server executes native macOS binaries (`osascript`, `pbcopy`, `pbpaste`). It will fail if executed on Linux or Windows.
+2. **Safe AppleScript**: When calling `execute_applescript`, ensure scripts do not block indefinitely (e.g. avoid infinite UI dialog loops).
+3. **Clipboard Content**: `clipboard_read` returns plain text. Non-text data (images, binary files) will return an empty string.
+
+---
+
+## 🎯 5. Playbooks & Skills (Common Agent Workflows)
+
+- **Alerting the user when a long job finishes**: Call `notify(title="Task Complete", message="Your build has finished successfully!", sound="Glass")`.
+- **Copying generated code to user's clipboard**: Call `clipboard_write(text=...)` and inform the user it's ready to paste (`Cmd+V`).
+- **Focusing or checking active app**: Call `get_frontmost_app` to verify if the user is in VS Code, Terminal, or Chrome.
