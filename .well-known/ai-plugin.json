@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "macOS Companion MCP Server",
+  "name_for_model": "macos_mcp",
+  "description_for_human": "Native macOS Companion MCP server for AI agents: system control, clipboard, notifications, audio devices, and automation.",
+  "description_for_model": "macOS Companion MCP Server: Native macOS Companion MCP server for AI agents: system control, clipboard, notifications, audio devices, and automation. Tools available: notify, clipboard_read, clipboard_write, get_audio_devices, set_volume, get_frontmost_app, get_open_windows, get_displays, open_url, execute_applescript, skill_read, skills_list",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://macos.builditwithai.xyz/openapi.json"
+  },
+  "logo_url": "https://macos.builditwithai.xyz/logo.png",
+  "contact_email": "support@builditwithai.xyz",
+  "legal_info_url": "https://macos.builditwithai.xyz/legal"
+}

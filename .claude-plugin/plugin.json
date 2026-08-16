@@ -1,0 +1,29 @@
+{
+  "name": "macos-companion-mcp",
+  "version": "1.3.2",
+  "description": "Native macOS Companion MCP server for AI agents: system control, clipboard, notifications, audio devices, and automation.",
+  "author": {
+    "name": "Surendran B",
+    "url": "https://github.com/surendranb"
+  },
+  "homepage": "https://macos.builditwithai.xyz",
+  "repository": "https://github.com/surendranb/macos-mcp",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "ai-agents"
+  ],
+  "mcpServers": {
+    "macos-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@surendranb/macos-companion-mcp"
+      ]
+    }
+  }
+}
