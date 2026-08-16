@@ -16,13 +16,33 @@ import * as os from 'os';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { XMLParser } from 'fast-xml-parser';
-import { trackFirstInstall } from './telemetry.js';
+import { trackFirstInstall, trackMcpStarted } from './telemetry.js';
 
 // exec with a sane maxBuffer — the 1MB default kills any tool that returns a
 // big payload (process lists, storage scans, podcast transcripts via cat).
+// Hard timeout too: without it, any slow/hung command (du over $HOME,
+// system_profiler stalls, camera waiting on permission) hangs the request
+// until the client gives up with -32001, leaving an orphaned child process.
+const EXEC_TIMEOUT_MS = 45_000;
 const execRaw = promisify(exec);
-function execAsync(cmd: string, opts: { maxBuffer?: number } = {}): Promise<{ stdout: string }> {
-  return execRaw(cmd, { maxBuffer: opts.maxBuffer ?? 32 * 1024 * 1024 });
+function execAsync(cmd: string, opts: { maxBuffer?: number; timeout?: number } = {}): Promise<{ stdout: string }> {
+  return execRaw(cmd, {
+    maxBuffer: opts.maxBuffer ?? 32 * 1024 * 1024,
+    timeout: opts.timeout ?? EXEC_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+  });
+}
+
+// TTL cache for expensive scans — a full $HOME du takes minutes cold; repeat
+// calls should be instant. Keyed by command string, no invalidation needed.
+const SCAN_CACHE_TTL_MS = 10 * 60_000;
+const scanCache = new Map<string, { at: number; value: string }>();
+async function cachedExec(cmd: string, ttlMs: number = SCAN_CACHE_TTL_MS): Promise<string> {
+  const hit = scanCache.get(cmd);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+  const { stdout } = await execAsync(cmd);
+  scanCache.set(cmd, { at: Date.now(), value: stdout });
+  return stdout;
 }
 
 // Resolve our own version from package.json (single source of truth) for both
@@ -961,7 +981,7 @@ server.setRequestHandler('tools/call', async (request) => {
           stats.disk_usage = df.trim();
         } catch(e) {}
         try {
-          const { stdout: du } = await execAsync(`du -xh -d 2 "$HOME" | sort -rh | head -15`);
+          const du = await cachedExec(`du -xh -d 1 -I node_modules -I .git -I .ollama "$HOME" | sort -rh | head -15`);
           stats.home_folders = du.trim();
         } catch(e) {}
         try {
@@ -1023,7 +1043,7 @@ server.setRequestHandler('tools/call', async (request) => {
         // Storage
         try {
           const { stdout: df } = await execAsync('df -h /System/Volumes/Data | awk "NR==1 || NR==2"');
-          const { stdout: du } = await execAsync(`du -xh -d 2 "$HOME" | sort -rh | head -15`);
+          const du = await cachedExec(`du -xh -d 1 -I node_modules -I .git -I .ollama "$HOME" | sort -rh | head -15`);
           audit.storage = { df: df.trim(), home_folders: du.trim() };
         } catch(e) {}
 
@@ -1561,9 +1581,10 @@ async function run() {
   await server.connect(transport);
   console.error('macOS Companion MCP Server running on stdio');
 
-  // One-time install ping — fires only on the very first run ever, then the
-  // server is network-silent forever (see telemetry.ts for the philosophy).
+  // One-time install ping — fires only on the very first run ever
   trackFirstInstall(SERVER_VERSION);
+  // Startup heartbeat ping with Schema v2 envelope
+  trackMcpStarted(SERVER_VERSION);
 
   // ponytail: warm up slow-starting apps in background at init so first tool call isn't cold.
   // Notes, Reminders, Calendar, and Mail take 15-40s to launch headlessly; open them now, don't wait.

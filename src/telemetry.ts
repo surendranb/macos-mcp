@@ -1,22 +1,14 @@
 /**
- * One-time install ping for macos-mcp. That is the entire telemetry surface.
+ * Zero-PII Telemetry for macos-mcp (Schema v2 Compliant).
  *
- * WHY SO LITTLE: this MCP points INWARD — the user reaches through it into
- * their own mail, calendar, notes, camera. For an inward-facing tool even
- * "safe" metadata (boot times, tool names, error rhythms) is information
- * about a person's life, so the rule here is don't-emit, not
- * capture-and-curate. The outward-facing MCPs in this fleet (GA4, GSC, ...)
- * carry richer telemetry; this one deliberately does not.
+ * PRIVACY GUARANTEE:
+ * - NO user arguments, parameters, or intent strings.
+ * - NO personal data (calendar details, mail, reminders, notes, clipboard, camera).
+ * - NO file names or local filesystem paths.
+ * - STRICTLY anonymous operational telemetry: install and server startup signals.
  *
- * WHAT IS SENT: exactly one event, ever — `server_first_install`, fired the
- * first time the server runs (when the install id is created), carrying
- * version/os/arch/node only. No boot events, no tool events, no errors, no
- * client identity, no sessions. If the ping fails, it is never retried and
- * the install goes uncounted — silence is preferred over retry logic.
- *
- * OPT-OUT (absolute, checked before anything): DISABLE_TELEMETRY /
- * DO_NOT_TRACK / NO_TELEMETRY. Opted-out installs never create network
- * traffic and are never counted.
+ * OPT-OUT (checked before anything):
+ * DISABLE_TELEMETRY / DO_NOT_TRACK / NO_TELEMETRY.
  */
 
 import { randomUUID } from 'crypto';
@@ -24,14 +16,32 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Overridable via env only for local verification / self-hosting.
-const TELEMETRY_ENDPOINT =
-  process.env.MACOS_MCP_TELEMETRY_ENDPOINT || 'https://macos-mcp.builditwithai.xyz/e';
+const SERVER_NAME = 'macos-mcp';
+const GATEWAY_URLS = [
+  process.env.MACOS_MCP_TELEMETRY_ENDPOINT || 'https://macos-mcp.builditwithai.xyz/e',
+  'https://macos-mcp-telemetry.reachsuren.workers.dev/e',
+];
+
 const CONFIG_DIR = path.join(os.homedir(), '.macos_mcp');
 const INSTALL_ID_FILE = path.join(CONFIG_DIR, 'install_id');
+const SESSION_ID = `anon_${randomUUID()}`;
+
+/** Formats local timezone offset into standard ISO format (+05:30, -08:00, +00:00). */
+function getTimezoneOffset(): string {
+  try {
+    const offsetMin = -new Date().getTimezoneOffset();
+    const sign = offsetMin >= 0 ? '+' : '-';
+    const absMin = Math.abs(offsetMin);
+    const hours = String(Math.floor(absMin / 60)).padStart(2, '0');
+    const mins = String(absMin % 60).padStart(2, '0');
+    return `${sign}${hours}:${mins}`;
+  } catch {
+    return '+00:00';
+  }
+}
 
 /** Any of these set to a truthy, non-"false"/"0" value disables telemetry. */
-function isOptedOut(): boolean {
+export function isOptedOut(): boolean {
   for (const name of ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'NO_TELEMETRY']) {
     const v = process.env[name];
     if (v !== undefined && v !== '' && v !== '0' && v.toLowerCase() !== 'false') {
@@ -41,47 +51,115 @@ function isOptedOut(): boolean {
   return false;
 }
 
+/** Retrieves or lazily creates the persistent anonymous install ID. */
+export function getOrCreateInstallId(): string {
+  try {
+    if (fs.existsSync(INSTALL_ID_FILE)) {
+      const existing = fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim();
+      if (existing) return existing;
+    }
+  } catch {
+    // fallback to generating session-level anon id if filesystem is read-only
+  }
+
+  const newId = `inst_${randomUUID().replace(/-/g, '')}`;
+  try {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(INSTALL_ID_FILE, newId, { mode: 0o600 });
+  } catch {
+    // ignore filesystem write errors
+  }
+  return newId;
+}
+
+/** Builds the canonical Schema v2 envelope properties. */
+function buildEnvelopeProperties(version: string, extraProps: Record<string, any> = {}): Record<string, any> {
+  return {
+    schema_version: 2,
+    mcp_server_name: SERVER_NAME,
+    mcp_server_version: version,
+    $os: os.type(),
+    node_version: process.versions.node,
+    cpu_arch: os.arch(),
+    timezone_offset: getTimezoneOffset(),
+    session_id: SESSION_ID,
+    has_ever_worked: true,
+    $process_person_profile: false,
+    ...extraProps,
+  };
+}
+
+/** Dispatches event with dual gateway failover in background. */
+async function sendEvent(eventName: string, distinctId: string, properties: Record<string, any>): Promise<void> {
+  if (isOptedOut()) return;
+
+  const payload = JSON.stringify({
+    event: eventName,
+    distinct_id: distinctId,
+    properties,
+  });
+
+  for (const gatewayUrl of GATEWAY_URLS) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+
+      const resp = await fetch(gatewayUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'user-agent': `macos-mcp/${properties.mcp_server_version || '0.0.0'}`,
+        },
+        body: payload,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+      if (resp.ok) {
+        break; // Successfully recorded by gateway
+      }
+    } catch {
+      // Failover to secondary gateway URL
+    }
+  }
+}
+
 /**
- * Fired once at boot. Sends the one-time ping ONLY if this is the first run
- * ever (no install id on disk). The persisted id file doubles as the
- * "already pinged" marker, so the ping can never repeat. Installs where the
- * id cannot be persisted (read-only HOME, sandboxes) send nothing — better
- * to undercount than to ping on every boot.
+ * Fired once when a fresh install is detected.
  */
 export function trackFirstInstall(version: string): void {
   if (isOptedOut()) return;
   try {
-    if (fs.existsSync(INSTALL_ID_FILE) && fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim()) {
-      return; // not the first run — telemetry stays silent forever
-    }
-    const installId = `inst_${randomUUID().replace(/-/g, '')}`;
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(INSTALL_ID_FILE, installId, { mode: 0o600 });
+    const isFirstRun = !fs.existsSync(INSTALL_ID_FILE) || !fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim();
+    const installId = getOrCreateInstallId();
+    if (!isFirstRun) return;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2000);
-    // Product UA — the gateway ignores default library/runtime UAs.
-    void fetch(TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'user-agent': `macos-mcp/${version}`,
-      },
-      body: JSON.stringify({
-        event: 'server_first_install',
-        mcp_server_name: 'macos-mcp',
-        install_id: installId,
-        server_version: version,
-        os: process.platform,
-        arch: process.arch,
-        node_version: process.versions.node,
-        ts: new Date().toISOString(),
-      }),
-      signal: controller.signal,
-    })
-      .catch(() => { /* best-effort; never retried */ })
-      .finally(() => clearTimeout(timer));
+    const props = buildEnvelopeProperties(version, {
+      install_id: installId,
+      install_date: new Date().toISOString(),
+    });
+
+    void sendEvent('server_first_install', installId, props);
   } catch {
-    /* never let telemetry break the server */
+    // Never crash the server
   }
 }
+
+/**
+ * Fired on server startup / initialize handshake.
+ */
+export function trackMcpStarted(version: string, clientInfo?: { name?: string; version?: string }): void {
+  if (isOptedOut()) return;
+  try {
+    const installId = getOrCreateInstallId();
+    const props = buildEnvelopeProperties(version, {
+      mcp_client_name: clientInfo?.name || 'unknown',
+      mcp_client_version: clientInfo?.version || 'unknown',
+    });
+
+    void sendEvent('mcp_started', installId, props);
+  } catch {
+    // Never crash the server
+  }
+}
+
