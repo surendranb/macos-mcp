@@ -1,4 +1,4 @@
-name: Release to npm
+name: Release to npm and PyPI
 
 on:
   release:
@@ -12,11 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm trusted publishing (OIDC) — no NPM_TOKEN. Configured on npmjs.com:
-      # package settings -> Trusted Publisher -> GitHub Actions,
-      # repo surendranb/macos-mcp, workflow release.yml.
       id-token: write
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -38,3 +34,30 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public
+
+  publish-to-pypi:
+    name: Publish Python wrapper to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: Build package
+        run: |
+          cd pypi
+          python -m build
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi/dist/
