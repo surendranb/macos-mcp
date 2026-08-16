@@ -1,83 +1,73 @@
-# AGENTS.md — Agent Operational Manual
+# AGENTS.md — Codebase Operational Guide for AI Agents
 
-> **Canonical context and operating procedures for AI agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) operating on or integrating `macos-mcp`.**
-
----
-
-## 1. System Identity & Mission
-
-- **Repository**: `surendranb/macos-mcp`
-- **Package Name**: `macos-companion-mcp` (PyPI) / `@surendranb/macos-companion-mcp` (NPM)
-- **Live Portal**: [https://macos.builditwithai.xyz](https://macos.builditwithai.xyz)
-- **Purpose**: Native macOS Companion MCP server for AI agents: system control, clipboard, notifications, audio devices, and automation.
+> **Context, architecture, file map, and execution commands for AI coding agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) working on `macos-mcp`.**
 
 ---
 
-## 2. Quickstart & Invocation for Agents
+## 1. Codebase Overview
 
-Agents integrating or executing this server should use stdio transport via either runtime:
+- **Language & Runtime**: TypeScript / Node.js 18+ (`@modelcontextprotocol/sdk`) + Python PyPI distribution bridge.
+- **Package Name**: `@surendranb/macos-companion-mcp` (NPM) / `macos-companion-mcp` (PyPI binary wheel wrapper).
+- **Core Function**: Provides native macOS system automation tools for AI agents: notifications, clipboard I/O, audio control, display geometry, frontmost app/window inspection, and sandboxed AppleScript/JXA execution.
 
-```bash
-# Python runtime (FastMCP / stdio)
-npx -y @surendranb/macos-companion-mcp
+---
 
-# Universal 1-line auto-installer
-curl -fsSL "https://macos.builditwithai.xyz/install" | bash
+## 2. Directory & File Map
+
+```
+macos-mcp/
+├── src/
+│   ├── index.ts               # Core MCP server, tool definitions, AppleScript subprocess runners
+│   ├── telemetry.ts           # Non-PII Edge Schema v2 telemetry client
+│   ├── run-once.ts            # CLI execution utility
+│   ├── test.ts                # TypeScript integration tests
+│   └── verify-all.cjs         # End-to-end verification script
+├── bin/
+│   └── macos-mcp              # Executable CLI launcher
+├── pypi/                      # Dual-distribution PyPI wheel wrapper
+│   ├── pyproject.toml         # Python packaging metadata (macos-companion-mcp)
+│   └── src/macos_companion_mcp/
+│       └── __init__.py        # Subprocess bridge that locates node and runs built dist/index.js
+├── test/
+│   └── smoke.mjs              # Node.js smoke tests
+├── package.json               # NPM scripts, dependencies, build scripts
+├── tsconfig.json              # TypeScript compiler configuration
+├── smithery.yaml              # Smithery.ai marketplace configuration
+├── server.json                # Official MCP registry specification
+├── gemini-extension.json      # Google Gemini / Antigravity extension manifest
+├── .claude-plugin/            # Claude Code plugin manifests (plugin.json, marketplace.json)
+└── .well-known/ai-plugin.json # OpenAI / ChatGPT Actions manifest
 ```
 
-### Environment Variables
-- None required (Zero configuration needed).
-
-
 ---
 
-## 3. Tool Reference & Capabilities
-
-| Tool | Capability Summary |
-|---|---|
-| `notify` | Dispatches native macOS desktop notifications with alert sounds. |
-| `clipboard_read` | Reads current plain text from clipboard. |
-| `clipboard_write` | Writes text to macOS clipboard. |
-| `get_audio_devices` | Lists audio devices and volume. |
-| `set_volume` | Adjusts output volume. |
-| `get_frontmost_app` | Returns active desktop app. |
-| `get_open_windows` | Lists visible application window titles. |
-| `get_displays` | Returns display resolutions and scaling. |
-| `open_url` | Opens URL in browser. |
-| `execute_applescript` | Runs AppleScript automation commands. |
-| `skill_read` | Loads automation playbooks dynamically from GitHub. |
-| `skills_list` | Lists all available macOS automation skills. |
-
----
-
-## 4. Agent Working Laws (Operational Rules)
-
-When contributing code, diagnosing bugs, or modifying this repository, all visiting agents must adhere strictly to these rules:
-
-1. **Truth Over Guessing**: Never fabricate responses, schema types, or error reasons. Run native verification scripts before asserting completion.
-2. **Shortest Working Diff (Lazy Senior Dev)**: Do not introduce unrequested abstractions, extra dependencies, or architectural bloat. Standard library and native platform features first.
-3. **Preserve Schema Stability**: Never remove or rename existing MCP tool parameters without strict backwards-compatibility layers.
-4. **Strict Telemetry Boundaries**: Diagnostic telemetry is non-PII and strictly opt-out. Never log user queries, credentials, file contents, or environment variables. Honor `DO_NOT_TRACK=1` and `MCP_TELEMETRY_OPT_OUT=1`.
-5. **No Direct Main Commits**: Always create a feature or fix branch before modifying code.
-
----
-
-## 5. Verification & Test Protocol
-
-Before marking any task as complete in this repository, run the test suite:
+## 3. Development & Testing Commands
 
 ```bash
-# Run automated verification suite
+# Install Node dependencies
+npm install
+
+# Compile TypeScript to JavaScript
+npm run build
+
+# Run the MCP server in stdio mode locally
+node dist/index.js
+
+# Run automated smoke test
 npm test
+
+# Run full tool verification (tests notify, clipboard, audio, displays)
+node src/verify-all.cjs
 ```
 
 ---
 
-## 6. Plugin & Marketplace Discovery Pointers
+## 4. Tool Implementation Invariants & Gotchas
 
-- **Claude Code**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- **Gemini CLI / Antigravity**: `gemini-extension.json`
-- **Smithery.ai**: `smithery.yaml`
-- **Official MCP Registry & Glama**: `server.json`
-- **OpenAI / ChatGPT Actions**: `.well-known/ai-plugin.json`
-- **AI Search Crawlers (GEO)**: `llms.txt`
+1. **macOS System Permissions (`src/index.ts`)**:
+   - `get_open_windows` and `execute_applescript` may require macOS Accessibility / Automation permissions in System Settings. Tools must handle permission denials gracefully with informative error messages instead of unhandled exceptions.
+2. **Clipboard Safety**:
+   - `clipboard_read` returns plain text only.
+   - `clipboard_write` must sanitize strings and avoid shell injection when delegating to `pbcopy`.
+3. **Dual Distribution Sync (`pypi/`)**:
+   - When building a new release, `npm run build` must compile `dist/index.js` first. The PyPI wrapper packages the compiled `dist/` into the Python wheel so Python users can run `uvx macos-companion-mcp` without separate build steps.
