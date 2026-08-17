@@ -2,12 +2,11 @@
 
 > **Native macOS Companion MCP server for AI agents: system control, clipboard management, desktop notifications, audio devices, and workspace automation.**
 
-[![PyPI version](https://img.shields.io/pypi/v/macos-companion-mcp?label=PyPI&color=blue)](https://pypi.org/project/macos-companion-mcp/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/macos-companion-mcp?label=PyPI%20downloads&color=blue)](https://pypi.org/project/macos-companion-mcp/)
-[![npm version](https://img.shields.io/npm/v/@surendranb/macos-companion-mcp?label=npm&color=red)](https://www.npmjs.com/package/@surendranb/macos-companion-mcp)
-[![npm downloads](https://img.shields.io/npm/dm/@surendranb/macos-companion-mcp?label=npm%20downloads&color=red)](https://www.npmjs.com/package/@surendranb/macos-companion-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/Docs-macos.builditwithai.xyz-purple)](https://macos.builditwithai.xyz)
+[![CI](https://github.com/surendranb/macos-companion-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/surendranb/macos-companion-mcp/actions)
+[![npm version](https://img.shields.io/npm/v/@surendranb/macos-companion-mcp.svg?style=flat-square&color=red)](https://www.npmjs.com/package/@surendranb/macos-companion-mcp)
+[![PyPI version](https://img.shields.io/pypi/v/macos-companion-mcp.svg?style=flat-square&color=blue)](https://pypi.org/project/macos-companion-mcp/)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/surendranb/macos-companion-mcp/badge)](https://scorecard.dev/viewer/?site=github.com/surendranb/macos-companion-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 🌐 **Live Documentation & Web Portal**: [https://macos.builditwithai.xyz](https://macos.builditwithai.xyz)
 
