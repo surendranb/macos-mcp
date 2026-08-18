@@ -15,13 +15,15 @@
 ## ⚡ Quickstart
 
 ```bash
-# 1-Line Universal Installer (Auto-configures Claude Code, Cursor, Claude Desktop & Antigravity)
+# 1-Line Universal Installer (Auto-configures Claude Desktop, Cursor, Claude Code, Antigravity, VS Code, Zed, Windsurf)
 curl -fsSL "https://macos.builditwithai.xyz/install" | bash
 
 # Or run directly via your preferred runtime:
-npx -y @surendranb/macos-companion-mcp
 uvx macos-companion-mcp
+npx -y @surendranb/macos-companion-mcp
 ```
+
+---
 
 ---
 
