@@ -831,13 +831,15 @@ server.setRequestHandler('tools/call', async (request) => {
 
       case 'skip_music_track': {
         const { direction } = args as { direction: string };
+        const normDir = (direction || '').toLowerCase().trim();
+        const action = normDir === 'next' ? 'next track' : 'previous track';
         await runAppleScript(`
           tell application "Music"
-            ${direction === 'next' ? 'next track' : 'previous track'}
+            ${action}
           end tell
         `);
         return {
-          content: [{ type: 'text', text: `Skipped track (${direction})` }],
+          content: [{ type: 'text', text: `Skipped track (${normDir === 'next' ? 'next' : 'previous'})` }],
         };
       }
 
