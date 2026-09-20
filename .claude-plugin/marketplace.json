@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Native macOS Companion MCP server for AI agents: system control, clipboard, notifications, audio devices, and automation.",
-    "version": "1.3.2"
+    "version": "1.3.3"
   },
   "plugins": [
     {
