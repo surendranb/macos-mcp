@@ -419,6 +419,11 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'get_system_info',
+    description: 'Alias for get_system_stats. Gets current CPU load, memory pressure, battery metrics, thermal level, and hung processes',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'get_process_list',
     description: 'Lists active running processes with resource usage',
     inputSchema: { type: 'object', properties: {} },
@@ -1134,6 +1139,7 @@ server.setRequestHandler('tools/call', async (request) => {
         };
       }
 
+      case 'get_system_info':
       case 'get_system_stats': {
         const stats: any = {};
 
