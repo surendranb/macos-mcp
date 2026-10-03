@@ -17,6 +17,8 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { XMLParser } from 'fast-xml-parser';
 import { trackFirstInstall, trackMcpStarted } from './telemetry.js';
+import { PACKAGE_NAME, checkServerUpdate, getUpgradeNudge } from './updates.js';
+
 
 // exec with a sane maxBuffer — the 1MB default kills any tool that returns a
 // big payload (process lists, storage scans, podcast transcripts via cat).
@@ -532,7 +534,16 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'check_for_updates',
+    description: 'Check npm registry for newer versions of @surendranb/macos-companion-mcp and get upgrade instructions.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
+
 
 // Register list tools handler (v2: method string 'tools/list', not a schema).
 // v2 types the result strictly (inputSchema.type is the literal 'object');
@@ -1568,13 +1579,28 @@ end tell`;
         };
       }
 
+      case 'check_for_updates': {
+
+        const updateInfo = await checkServerUpdate(PACKAGE_NAME, SERVER_VERSION, true);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(updateInfo, null, 2) }],
+        };
+      }
+
       default:
         throw new Error(`Tool not found: ${name}`);
     }
   };
 
   try {
-    return await dispatch();
+    const result = await dispatch();
+    if (name !== 'check_for_updates' && !result?.isError) {
+      const nudge = getUpgradeNudge(PACKAGE_NAME, SERVER_VERSION);
+      if (nudge && result && Array.isArray(result.content)) {
+        result.content.push({ type: 'text', text: nudge });
+      }
+    }
+    return result;
   } catch (error) {
     return {
       content: [{ type: 'text', text: `Error executing tool "${name}": ${(error as Error).message}` }],

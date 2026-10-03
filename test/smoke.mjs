@@ -67,9 +67,10 @@ async function main() {
   // 2. Tools list contains the podcast tools
   const list = await call('tools/list', {});
   const names = list.result?.tools?.map((t) => t.name) || [];
-  for (const t of ['get_podcast_transcript', 'open_podcast_episode', 'play_podcast_episode', 'pause_podcast_episode', 'get_recent_podcast_episodes']) {
+  for (const t of ['get_podcast_transcript', 'open_podcast_episode', 'play_podcast_episode', 'pause_podcast_episode', 'get_recent_podcast_episodes', 'check_for_updates']) {
     check(`tools/list has ${t}`, names.includes(t));
   }
+
   check('tools/list count > 35', names.length > 35, `${names.length}`);
 
   // 3. get_recent_podcast_episodes surfaces transcript/episode ids
@@ -132,7 +133,20 @@ async function main() {
   const disk = await call('tools/call', { name: 'get_disk_usage', arguments: {} }, 30_000);
   check('get_disk_usage works', !disk.timeout && disk.result?.isError !== true);
 
+  // 10. check_for_updates tool works
+  const upd = await call('tools/call', { name: 'check_for_updates', arguments: {} }, 10_000);
+  check('check_for_updates responds', !upd.timeout && upd.result?.isError !== true);
+  try {
+    const updData = JSON.parse(upd.result?.content?.[0]?.text || '{}');
+    check('check_for_updates returns server name', updData.server === '@surendranb/macos-companion-mcp');
+    check('check_for_updates returns current_version', typeof updData.current_version === 'string');
+    check('check_for_updates returns message', typeof updData.message === 'string');
+  } catch {
+    check('check_for_updates returns valid JSON', false);
+  }
+
   server.kill();
+
   console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
   process.exit(failures === 0 ? 0 : 1);
 }
