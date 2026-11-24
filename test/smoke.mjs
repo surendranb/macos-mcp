@@ -10,6 +10,10 @@ import { spawn } from 'child_process';
 const KNOWN_CACHED_ID = process.argv[2] || '1000779512444'; // Micky Malka ep, verified-cached
 const KNOWN_MISSING_ID = '999999999999'; // never cached
 
+// CI runners have no Podcasts library, Reminders/Notes data, or TCC automation
+// grants — live-data checks only run on a real user session.
+const LIVE = !process.env.CI;
+
 let failures = 0;
 const checks = [];
 
@@ -17,6 +21,11 @@ function check(name, ok, detail = '') {
   checks.push({ name, ok, detail });
   if (!ok) failures++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
+}
+
+function skip(name, reason) {
+  checks.push({ name, ok: true, skipped: true });
+  console.log(`SKIP  ${name}  (${reason})`);
 }
 
 async function main() {
@@ -80,20 +89,29 @@ async function main() {
   try { parsed = JSON.parse(epText); } catch {}
   check('episodes returns array', Array.isArray(parsed));
   const withTranscript = parsed.find((e) => e.transcriptId);
-  check('episodes include transcriptId field', parsed.length > 0 && 'transcriptId' in parsed[0]);
-  check('episodes include episodeId field', parsed.length > 0 && 'episodeId' in parsed[0]);
+  if (LIVE) {
+    check('episodes include transcriptId field', parsed.length > 0 && 'transcriptId' in parsed[0]);
+    check('episodes include episodeId field', parsed.length > 0 && 'episodeId' in parsed[0]);
+  } else {
+    skip('episodes include transcriptId field', 'no Podcasts library on CI');
+    skip('episodes include episodeId field', 'no Podcasts library on CI');
+  }
 
   // 4. get_podcast_transcript on a KNOWN-CACHED id: words must have spaces
-  const tr = await call('tools/call', {
-    name: 'get_podcast_transcript',
-    arguments: { transcriptId: `PodcastContent221/v4/00/00/00/transcript_${KNOWN_CACHED_ID}.ttml`, includeTimestamps: false },
-  }, 30_000);
-  const trText = tr.result?.content?.[0]?.text || '';
-  const trJson = JSON.parse(trText);
-  check('transcript (cached) returns content', !tr.timeout && trJson.segments?.length > 0, `${trJson.segments?.length || 0} segments`);
-  if (trJson.transcript) {
-    check('transcript words have spaces (no run-together)', !/\.\w/.test(trJson.transcript.slice(0, 200)), trJson.transcript.slice(0, 60).replace(/\n/g, ' '));
-    check('transcript has speaker labels', /Speaker \d/.test(trJson.transcript));
+  if (LIVE) {
+    const tr = await call('tools/call', {
+      name: 'get_podcast_transcript',
+      arguments: { transcriptId: `PodcastContent221/v4/00/00/00/transcript_${KNOWN_CACHED_ID}.ttml`, includeTimestamps: false },
+    }, 30_000);
+    const trText = tr.result?.content?.[0]?.text || '';
+    const trJson = JSON.parse(trText);
+    check('transcript (cached) returns content', !tr.timeout && trJson.segments?.length > 0, `${trJson.segments?.length || 0} segments`);
+    if (trJson.transcript) {
+      check('transcript words have spaces (no run-together)', !/\.\w/.test(trJson.transcript.slice(0, 200)), trJson.transcript.slice(0, 60).replace(/\n/g, ' '));
+      check('transcript has speaker labels', /Speaker \d/.test(trJson.transcript));
+    }
+  } else {
+    skip('transcript (cached) returns content', 'no cached transcripts on CI');
   }
 
   // 5. get_podcast_transcript on a missing id: clean isError, no exception
@@ -105,29 +123,41 @@ async function main() {
   check('transcript (missing) friendly message', /not cached|Play the episode/i.test(miss.result?.content?.[0]?.text || ''));
 
   // 6. open_podcast_episode UI flow (search + open top result in Podcasts app)
-  const openTitle = withTranscript?.title || parsed[0]?.title || 'The Daily';
-  const open = await call('tools/call', { name: 'open_podcast_episode', arguments: { title: openTitle } }, 40_000);
-  check('open_podcast_episode returns ok', !open.timeout && open.result?.isError !== true, open.result?.content?.[0]?.text?.slice(0, 40) || '');
+  if (LIVE) {
+    const openTitle = withTranscript?.title || parsed[0]?.title || 'The Daily';
+    const open = await call('tools/call', { name: 'open_podcast_episode', arguments: { title: openTitle } }, 40_000);
+    check('open_podcast_episode returns ok', !open.timeout && open.result?.isError !== true, open.result?.content?.[0]?.text?.slice(0, 40) || '');
+  } else {
+    skip('open_podcast_episode returns ok', 'no Podcasts UI on CI');
+  }
 
   // 7. get_reminders must NOT hang (was 75s per-object loop)
-  const t0 = Date.now();
-  const rem = await call('tools/call', { name: 'get_reminders', arguments: {} }, 40_000);
-  const remMs = Date.now() - t0;
-  check('get_reminders responds', !rem.timeout && rem.result?.isError !== true, `${remMs}ms`);
-  try {
-    const arr = JSON.parse(rem.result?.content?.[0]?.text || '[]');
-    check('get_reminders returns array', Array.isArray(arr));
-  } catch { check('get_reminders returns array', false); }
+  if (LIVE) {
+    const t0 = Date.now();
+    const rem = await call('tools/call', { name: 'get_reminders', arguments: {} }, 40_000);
+    const remMs = Date.now() - t0;
+    check('get_reminders responds', !rem.timeout && rem.result?.isError !== true, `${remMs}ms`);
+    try {
+      const arr = JSON.parse(rem.result?.content?.[0]?.text || '[]');
+      check('get_reminders returns array', Array.isArray(arr));
+    } catch { check('get_reminders returns array', false); }
+  } else {
+    skip('get_reminders responds', 'no Reminders data/TCC on CI');
+  }
 
   // 8. list_notes must NOT hang (was >25s per-object loop)
-  const t1 = Date.now();
-  const notes = await call('tools/call', { name: 'list_notes', arguments: {} }, 40_000);
-  const notesMs = Date.now() - t1;
-  check('list_notes responds', !notes.timeout && notes.result?.isError !== true, `${notesMs}ms`);
-  try {
-    const arr = JSON.parse(notes.result?.content?.[0]?.text || '[]');
-    check('list_notes returns array', Array.isArray(arr));
-  } catch { check('list_notes returns array', false); }
+  if (LIVE) {
+    const t1 = Date.now();
+    const notes = await call('tools/call', { name: 'list_notes', arguments: {} }, 40_000);
+    const notesMs = Date.now() - t1;
+    check('list_notes responds', !notes.timeout && notes.result?.isError !== true, `${notesMs}ms`);
+    try {
+      const arr = JSON.parse(notes.result?.content?.[0]?.text || '[]');
+      check('list_notes returns array', Array.isArray(arr));
+    } catch { check('list_notes returns array', false); }
+  } else {
+    skip('list_notes responds', 'no Notes data/TCC on CI');
+  }
 
   // 9. Basic system tools still fine
   const disk = await call('tools/call', { name: 'get_disk_usage', arguments: {} }, 30_000);
