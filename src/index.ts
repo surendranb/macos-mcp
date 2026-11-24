@@ -1244,13 +1244,14 @@ server.setRequestHandler('tools/call', async (request) => {
             p.ZTITLE as podcast_title,
             e.ZTITLE as episode_title,
             e.ZPLAYHEAD as playhead,
-            e.ZDURATION as duration,
+            m.ZDURATION as duration,
             e.ZPLAYSTATE as play_state,
-            e.ZTRANSCRIPTIDENTIFIER as transcript_id,
+            m.ZTRANSCRIPTIDENTIFIER as transcript_id,
             e.ZSTORETRACKID as episode_id,
             p.ZSTORECOLLECTIONID as podcast_id
           FROM ZMTEPISODE e 
           JOIN ZMTPODCAST p ON e.ZPODCAST = p.Z_PK
+          LEFT JOIN ZMTMEDIAENCLOSURE m ON m.Z_PK = e.ZCURRENTMEDIAENCLOSURE
         `;
         // ponytail: date bounds via strftime('%s', ...) on the unix epoch — ZPUBDATE is Apple epoch (2001), +978307200 converts. Bounds are UTC midnight; good enough for daily granularity.
         const where: string[] = [];
